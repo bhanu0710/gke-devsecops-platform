@@ -1,6 +1,6 @@
 replicaCount: 1 # Lower replica count saves cost in staging
 image:
-  tag: "latest"  # Updated by CI pipeline (Stage 9)
+  tag: "4c43645"
 resources:
   requests:
     cpu: "50m"
