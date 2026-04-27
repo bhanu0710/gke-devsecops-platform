@@ -91,9 +91,9 @@ spec:
           securityContext:
             # runAsNonRoot enforced by OPA K8sNoRootContainers policy.
             # runAsUser must be numeric (Kubernetes can't verify named users).
-            # distroless nonroot=65532, python slim appuser=1001.
+            # distroless nonroot=65532; python slim appuser=1001.
             runAsNonRoot: true
-            runAsUser: {{ .Values.securityContext.runAsUser | default 65532 }}
+            runAsUser: {{ if .Values.securityContext }}{{ .Values.securityContext.runAsUser | default 65532 }}{{ else }}65532{{ end }}
             readOnlyRootFilesystem: true
             allowPrivilegeEscalation: false
             capabilities:
