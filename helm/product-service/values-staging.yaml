@@ -1,6 +1,6 @@
 replicaCount: 1
 image:
-  tag: "4c43645"
+  tag: "da924ab"
 resources:
   requests:
     cpu: "50m"

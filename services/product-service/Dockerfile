@@ -1,33 +1,27 @@
-# Multi-stage build for product-service.
-# Installing with --user in the builder stage lets us copy only the installed
-# packages to the final image without pip or the build toolchain.
-
 # ── Stage 1: Install dependencies ────────────────────────────────────────────
 FROM python:3.12-slim AS builder
 WORKDIR /app
 
 COPY requirements.txt .
-# --user installs to /root/.local so we can COPY just that dir to the final stage
-RUN pip install --user --no-cache-dir -r requirements.txt
+# Install to /app/packages so the non-root user can read them
+RUN pip install --no-cache-dir --target /app/packages -r requirements.txt
 
 # ── Stage 2: Lean runtime image ───────────────────────────────────────────────
 FROM python:3.12-slim
 
 WORKDIR /app
 
-# Copy only installed packages — not pip, setuptools, or build tools
-COPY --from=builder /root/.local /root/.local
+COPY --from=builder /app/packages /app/packages
 COPY src/ ./src/
 
-# Create a non-root user — required by OPA K8sNoRootContainers policy
-RUN useradd -r -u 1001 -g root appuser
+# UID 1001 — must be numeric for Kubernetes runAsNonRoot verification
+RUN useradd -r -u 1001 -g root appuser && chown -R appuser /app
 USER appuser
 
 EXPOSE 8000
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    PATH=/root/.local/bin:$PATH \
-    NODE_ENV=production
+    PYTHONPATH=/app/packages
 
 CMD ["python", "-m", "uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
