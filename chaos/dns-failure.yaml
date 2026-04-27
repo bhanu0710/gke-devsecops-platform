@@ -1,0 +1,34 @@
+# Chaos Experiment 4: DNS Failure
+# Hypothesis: If DNS resolution fails for product-service, order-service should
+# return errors for those calls. The Istio retry policy (3 retries) should
+# handle transient DNS failures. Persistent DNS failure should trigger the
+# circuit breaker and return a 503 quickly rather than timing out.
+#
+# This validates:
+#   1. Istio handles DNS failures gracefully (retry → circuit break → fast fail)
+#   2. order-service doesn't hang indefinitely on DNS timeout
+#   3. Loki logs show clear DNS failure messages for post-incident analysis
+#
+# Run: kubectl apply -f chaos/dns-failure.yaml
+# Watch: kubectl logs -n staging -l app=order-service --tail=50 -f
+#        Grafana → Loki → {namespace="staging",app="order-service"} | json
+---
+apiVersion: chaos-mesh.org/v1alpha1
+kind: DNSChaos
+metadata:
+  name: product-service-dns-failure
+  namespace: chaos-testing
+  annotations:
+    experiment.chaos-mesh.org/description: "DNS failure for product-service — validates circuit breaker"
+spec:
+  action: random     # Return random/incorrect DNS responses (simulates misconfigured DNS)
+  mode: all          # Affect all pods in the selector
+  selector:
+    namespaces:
+      - staging
+    labelSelectors:
+      app: order-service  # Inject DNS failure at the caller — order-service can't resolve product-service
+  patterns:
+    - "product-service.*"   # Only poison DNS for product-service hostnames
+    - "product-service.staging.svc.cluster.local"
+  duration: "30s"

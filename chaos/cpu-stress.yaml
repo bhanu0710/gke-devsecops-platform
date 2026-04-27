@@ -1,0 +1,33 @@
+# Chaos Experiment 3: CPU Stress
+# Hypothesis: Stressing user-service to 80% CPU for 60 seconds should trigger
+# HPA to scale out from 1 to 2-3 replicas. After the stress ends, HPA should
+# scale back down after the 5-minute stabilization window.
+#
+# This validates:
+#   1. HPA responds to CPU > 70% (the configured threshold)
+#   2. Autoscaler brings up new pods within 60s
+#   3. KEDA's Prometheus-based scaler doesn't conflict with CPU-based HPA
+#
+# Run: kubectl apply -f chaos/cpu-stress.yaml
+# Watch: kubectl get hpa -n staging -w
+#        Grafana Platform Overview → watch pod count increase
+---
+apiVersion: chaos-mesh.org/v1alpha1
+kind: StressChaos
+metadata:
+  name: user-service-cpu-stress
+  namespace: chaos-testing
+  annotations:
+    experiment.chaos-mesh.org/description: "80% CPU stress on user-service — validates HPA scale-out"
+spec:
+  mode: one  # Stress one pod, not all — avoids completely killing the service
+  selector:
+    namespaces:
+      - staging
+    labelSelectors:
+      app: user-service
+  stressors:
+    cpu:
+      workers: 1    # Number of goroutines generating CPU load
+      load: 80      # Target 80% CPU utilization — above HPA threshold of 70%
+  duration: "60s"

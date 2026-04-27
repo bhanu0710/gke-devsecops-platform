@@ -1,0 +1,101 @@
+# Istio AuthorizationPolicy — L7 allow-list.
+# Every service-to-service call must be explicitly allowed here.
+# An allow-all policy or no policy means ANY authenticated service can call ANY other.
+# This explicit model means a compromised order-service CANNOT call internal admin APIs.
+
+# ── Deny all by default in staging namespace ─────────────────────────────────
+---
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: deny-all
+  namespace: staging
+spec:
+  {}  # Empty spec = deny all traffic by default
+
+# ── user-service: allow from order-service and ingress gateway ───────────────
+---
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: user-service-allow
+  namespace: staging
+spec:
+  selector:
+    matchLabels:
+      app: user-service
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals:
+              # Principals are Istio SPIFFE identities based on service account names
+              - cluster.local/ns/staging/sa/order-service
+              - cluster.local/ns/istio-system/sa/istio-ingressgateway-service-account
+      to:
+        - operation:
+            methods: [GET, POST, PUT, DELETE]
+            ports: ["3000"]
+
+# ── product-service: allow from order-service and ingress gateway ─────────────
+---
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: product-service-allow
+  namespace: staging
+spec:
+  selector:
+    matchLabels:
+      app: product-service
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals:
+              - cluster.local/ns/staging/sa/order-service
+              - cluster.local/ns/istio-system/sa/istio-ingressgateway-service-account
+      to:
+        - operation:
+            methods: [GET, POST, PUT, DELETE]
+            ports: ["8000"]
+
+# ── order-service: allow only from ingress gateway ────────────────────────────
+---
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: order-service-allow
+  namespace: staging
+spec:
+  selector:
+    matchLabels:
+      app: order-service
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals:
+              - cluster.local/ns/istio-system/sa/istio-ingressgateway-service-account
+      to:
+        - operation:
+            methods: [GET, POST, PATCH]
+            ports: ["3001"]
+
+# ── Allow Prometheus to scrape all services ──────────────────────────────────
+---
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-prometheus-scrape
+  namespace: staging
+spec:
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            namespaces: [monitoring]
+      to:
+        - operation:
+            methods: [GET]
+            paths: ["/metrics"]

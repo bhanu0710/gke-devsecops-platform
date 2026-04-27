@@ -1,0 +1,29 @@
+# root-app.yaml — App-of-Apps root application.
+# This single ArgoCD Application watches the gitops/argocd/applications/ directory.
+# Adding a new YAML file there automatically creates a new ArgoCD Application.
+# Removing it deletes the Application (and prune=true deletes the K8s resources).
+# This is the ONLY manually applied manifest — everything else is managed by GitOps.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: root-app
+  namespace: argocd
+  # Finalizer ensures ArgoCD deletes all managed resources before the Application is removed
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/bhanupratapsingh/gke-devsecops-platform.git
+    targetRevision: main
+    path: gitops/argocd/applications
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true      # Remove Applications that are deleted from git
+      selfHeal: true   # Revert manual changes (drift detection + remediation)
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

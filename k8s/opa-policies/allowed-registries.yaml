@@ -1,0 +1,60 @@
+# K8sAllowedRegistries — only allows images from our Artifact Registry.
+# Prevents pulling images from unknown registries (e.g., Docker Hub) where
+# supply chain attacks are common (typosquatting, hijacked accounts).
+---
+apiVersion: templates.gatekeeper.sh/v1
+kind: ConstraintTemplate
+metadata:
+  name: k8sallowedregistries
+spec:
+  crd:
+    spec:
+      names:
+        kind: K8sAllowedRegistries
+      validation:
+        openAPIV3Schema:
+          properties:
+            registries:
+              type: array
+              items:
+                type: string
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package k8sallowedregistries
+
+        violation[{"msg": msg}] {
+          container := input.review.object.spec.containers[_]
+          not allowed_registry(container.image)
+          msg := sprintf("Container '%v' uses image '%v' from a disallowed registry", [container.name, container.image])
+        }
+
+        allowed_registry(image) {
+          registry := input.parameters.registries[_]
+          startswith(image, registry)
+        }
+---
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sAllowedRegistries
+metadata:
+  name: allowed-registries
+spec:
+  enforcementAction: deny
+  match:
+    kinds:
+      - apiGroups: [apps]
+        kinds: [Deployment, StatefulSet, DaemonSet]
+      - apiGroups: [argoproj.io]
+        kinds: [Rollout]
+    excludedNamespaces:
+      - kube-system
+      - istio-system
+      - gatekeeper-system
+      - argocd
+      - monitoring
+  parameters:
+    registries:
+      - us-central1-docker.pkg.dev/   # Our Artifact Registry
+      - gcr.io/distroless/             # Google distroless base images
+      - gcr.io/gke-release/            # GKE system images
+      - gcr.io/google_containers/      # Google system containers

@@ -1,0 +1,52 @@
+# K8sRequiredLabels — enforces that app, version, and team labels are present.
+# These labels are used by Prometheus ServiceMonitors, network policies,
+# and the Grafana dashboards to group metrics by service and team.
+---
+apiVersion: templates.gatekeeper.sh/v1
+kind: ConstraintTemplate
+metadata:
+  name: k8srequiredlabels
+spec:
+  crd:
+    spec:
+      names:
+        kind: K8sRequiredLabels
+      validation:
+        openAPIV3Schema:
+          properties:
+            labels:
+              type: array
+              items:
+                type: string
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package k8srequiredlabels
+
+        violation[{"msg": msg}] {
+          provided := {label | input.review.object.metadata.labels[label]}
+          required := {label | label := input.parameters.labels[_]}
+          missing := required - provided
+          count(missing) > 0
+          msg := sprintf("Missing required labels: %v", [missing])
+        }
+---
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sRequiredLabels
+metadata:
+  name: required-labels
+spec:
+  enforcementAction: deny
+  match:
+    kinds:
+      - apiGroups: [apps]
+        kinds: [Deployment]
+      - apiGroups: [argoproj.io]
+        kinds: [Rollout]
+    excludedNamespaces:
+      - kube-system
+      - istio-system
+      - gatekeeper-system
+      - argocd
+  parameters:
+    labels: [app, version, team]

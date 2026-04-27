@@ -1,0 +1,72 @@
+# Vault Helm values — HA deployment with GCP KMS auto-unseal.
+# Why auto-unseal: Vault starts sealed after every restart. Without auto-unseal,
+# someone must manually enter unseal keys after every pod restart — impractical in K8s.
+# GCP KMS auto-unseal uses a KMS key (free tier: 1 key version free/month) to
+# automatically unseal Vault when it starts.
+
+global:
+  enabled: true
+  tlsDisable: false  # TLS enabled — certificates from Vault's own PKI engine
+
+injector:
+  enabled: true  # Vault Agent Injector sidecar for secret injection into pods
+  replicas: 1
+
+server:
+  replicas: 3  # HA mode requires 3+ replicas for Raft consensus
+
+  # GCS storage backend for HA — shared storage lets all Vault replicas
+  # see the same data and one becomes the active leader
+  ha:
+    enabled: true
+    raft:
+      enabled: true
+      setNodeId: true
+      config: |
+        ui = true
+
+        listener "tcp" {
+          tls_disable = 0
+          address     = "[::]:8200"
+          cluster_address = "[::]:8201"
+          tls_cert_file  = "/vault/userconfig/vault-server-tls/tls.crt"
+          tls_key_file   = "/vault/userconfig/vault-server-tls/tls.key"
+        }
+
+        storage "gcs" {
+          bucket     = "${GCP_PROJECT_ID}-vault-storage"
+          ha_enabled = "true"
+        }
+
+        # GCP KMS auto-unseal — Vault uses the KMS key to wrap/unwrap its master key.
+        # If the KMS key is rotated, Vault automatically re-wraps with the new version.
+        seal "gcpckms" {
+          project    = "${GCP_PROJECT_ID}"
+          region     = "global"
+          key_ring   = "vault-keyring"
+          crypto_key = "vault-unseal-key"
+        }
+
+        service_registration "kubernetes" {}
+
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "250m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+
+  dataStorage:
+    enabled: true
+    size: 10Gi
+    storageClass: standard-rwo
+
+  # Vault uses its own service account with Workload Identity to access KMS and GCS
+  serviceAccount:
+    annotations:
+      iam.gke.io/gcp-service-account: "vault-sa@${GCP_PROJECT_ID}.iam.gserviceaccount.com"
+
+ui:
+  enabled: true
+  serviceType: ClusterIP  # Accessed via port-forward; no public exposure

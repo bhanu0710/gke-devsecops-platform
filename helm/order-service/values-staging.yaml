@@ -1,0 +1,18 @@
+replicaCount: 1
+image:
+  tag: "latest"
+resources:
+  requests:
+    cpu: "50m"
+    memory: "64Mi"
+  limits:
+    cpu: "250m"
+    memory: "128Mi"
+autoscaling:
+  minReplicas: 1
+  maxReplicas: 3
+extraEnv:
+  - name: USER_SERVICE_URL
+    value: "http://user-service.staging.svc.cluster.local:3000"
+  - name: PRODUCT_SERVICE_URL
+    value: "http://product-service.staging.svc.cluster.local:8000"

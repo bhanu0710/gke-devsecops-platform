@@ -1,0 +1,13 @@
+replicaCount: 1 # Lower replica count saves cost in staging
+image:
+  tag: "latest"  # Updated by CI pipeline (Stage 9)
+resources:
+  requests:
+    cpu: "50m"
+    memory: "64Mi"
+  limits:
+    cpu: "250m"
+    memory: "128Mi"
+autoscaling:
+  minReplicas: 1
+  maxReplicas: 3

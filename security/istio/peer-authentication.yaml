@@ -1,0 +1,69 @@
+# Istio strict mTLS — all pod-to-pod communication is mutually authenticated and encrypted.
+# STRICT mode: connections without a valid Istio certificate are REJECTED.
+# This means a compromised pod cannot impersonate another service.
+---
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: strict-mtls
+  namespace: istio-system  # Mesh-wide policy applies to all namespaces
+spec:
+  mtls:
+    mode: STRICT
+---
+# DestinationRule — circuit breaker and connection pool settings for user-service
+# Outlier detection: if a pod returns 5xx errors for 30% of requests in 30s,
+# eject it from the load balancing pool for 60s to prevent cascading failures.
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: user-service
+  namespace: staging
+spec:
+  host: user-service.staging.svc.cluster.local
+  trafficPolicy:
+    connectionPool:
+      tcp:
+        maxConnections: 100
+      http:
+        h2UpgradePolicy: UPGRADE
+        idleTimeout: 90s
+    outlierDetection:
+      consecutiveGatewayErrors: 5
+      consecutive5xxErrors: 5
+      interval: 30s
+      baseEjectionTime: 60s
+      maxEjectionPercent: 50  # Never eject more than 50% of instances
+    retryPolicy:
+      attempts: 3
+      perTryTimeout: 5s
+      retryOn: "gateway-error,connect-failure,retriable-4xx"
+---
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: product-service
+  namespace: staging
+spec:
+  host: product-service.staging.svc.cluster.local
+  trafficPolicy:
+    outlierDetection:
+      consecutiveGatewayErrors: 5
+      interval: 30s
+      baseEjectionTime: 60s
+    retryPolicy:
+      attempts: 3
+      perTryTimeout: 5s
+---
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: order-service
+  namespace: staging
+spec:
+  host: order-service.staging.svc.cluster.local
+  trafficPolicy:
+    outlierDetection:
+      consecutiveGatewayErrors: 5
+      interval: 30s
+      baseEjectionTime: 60s

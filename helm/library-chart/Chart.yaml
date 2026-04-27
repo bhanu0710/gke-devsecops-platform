@@ -1,0 +1,8 @@
+apiVersion: v2
+name: library-chart
+description: |
+  Shared Helm library chart for all GKE DevSecOps platform services.
+  Service charts declare this as a dependency and get Deployment, Service,
+  HPA, PDB, NetworkPolicy, and ServiceMonitor for free.
+type: library
+version: 1.0.0

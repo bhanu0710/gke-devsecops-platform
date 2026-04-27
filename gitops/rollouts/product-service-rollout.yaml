@@ -1,0 +1,134 @@
+# Argo Rollout replaces the Deployment for product-service.
+# Canary strategy: traffic shifts 10% → 30% → 100% with analysis between steps.
+# Istio VirtualService handles the actual traffic splitting at the L7 level.
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: product-service
+  namespace: staging
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: product-service
+  template:
+    metadata:
+      labels:
+        app: product-service
+    spec:
+      serviceAccountName: product-service
+      tolerations:
+        - key: cloud.google.com/gke-spot
+          operator: Exists
+          effect: NoSchedule
+      containers:
+        - name: product-service
+          image: us-central1-docker.pkg.dev/YOUR_PROJECT/devsecops-platform/product-service:latest
+          ports:
+            - containerPort: 8000
+              name: http
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "250m"
+              memory: "128Mi"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+          securityContext:
+            runAsNonRoot: true
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+  strategy:
+    canary:
+      # Istio routes traffic by weight between stable and canary services
+      canaryService: product-service-canary
+      stableService: product-service-stable
+      trafficRouting:
+        istio:
+          virtualService:
+            name: product-service-vs
+            routes:
+              - primary
+      steps:
+        # 10% canary — observe error rate for 2 minutes
+        - setWeight: 10
+        - pause:
+            duration: 2m
+        # 30% canary — if still healthy, proceed
+        - setWeight: 30
+        - pause:
+            duration: 2m
+        # Run automated analysis before full rollout
+        # This calls Prometheus — if error rate > 5%, automatically rolls back
+        - analysis:
+            templates:
+              - templateName: error-rate-check
+        # Full rollout — 100% traffic to new version
+        - setWeight: 100
+---
+# AnalysisTemplate — queries Prometheus to determine if the canary is healthy.
+# A result > 0.05 (5% error rate) triggers automatic rollback.
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: error-rate-check
+  namespace: staging
+spec:
+  metrics:
+    - name: error-rate
+      interval: 30s
+      successCondition: result[0] < 0.05
+      failureLimit: 3  # Allow 3 consecutive failures before rolling back
+      provider:
+        prometheus:
+          address: http://prometheus-operated.monitoring.svc.cluster.local:9090
+          query: |
+            sum(rate(http_requests_total{job="product-service",status=~"5.."}[2m]))
+            /
+            sum(rate(http_requests_total{job="product-service"}[2m]))
+---
+# Canary and Stable services are required by Argo Rollouts Istio traffic routing.
+# The controller updates these services' selectors to point to canary/stable pods.
+apiVersion: v1
+kind: Service
+metadata:
+  name: product-service-canary
+  namespace: staging
+spec:
+  selector:
+    app: product-service
+  ports:
+    - port: 8000
+      targetPort: http
+      name: http
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: product-service-stable
+  namespace: staging
+spec:
+  selector:
+    app: product-service
+  ports:
+    - port: 8000
+      targetPort: http
+      name: http

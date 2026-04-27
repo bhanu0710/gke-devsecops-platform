@@ -1,0 +1,35 @@
+replicaCount: 2
+team: platform
+
+image:
+  repository: us-central1-docker.pkg.dev/YOUR_PROJECT/devsecops-platform/order-service
+  tag: "latest"
+
+service:
+  port: 3001
+
+env: production
+
+workloadIdentity:
+  gcpServiceAccount: app-sa@YOUR_PROJECT.iam.gserviceaccount.com
+
+resources:
+  requests:
+    cpu: "100m"
+    memory: "128Mi"
+  limits:
+    cpu: "500m"
+    memory: "256Mi"
+
+autoscaling:
+  minReplicas: 2
+  maxReplicas: 10
+
+istio:
+  inject: "true"
+
+extraEnv:
+  - name: USER_SERVICE_URL
+    value: "http://user-service.staging.svc.cluster.local:3000"
+  - name: PRODUCT_SERVICE_URL
+    value: "http://product-service.staging.svc.cluster.local:8000"

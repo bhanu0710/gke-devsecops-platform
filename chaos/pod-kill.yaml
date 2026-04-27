@@ -1,0 +1,32 @@
+# Chaos Experiment 1: Pod Kill
+# Hypothesis: If we kill the order-service pod, Kubernetes should reschedule it
+# and the service should recover within 60 seconds with no data loss.
+# This validates that:
+#   1. The Deployment controller reschedules the pod automatically
+#   2. The readiness probe prevents traffic until the new pod is healthy
+#   3. The PodDisruptionBudget allows the kill (minAvailable: 1 requires ≥2 replicas)
+#
+# Run: kubectl apply -f chaos/pod-kill.yaml
+# Observe: kubectl get pods -n staging -w
+#          Watch Grafana "Platform Overview" for the error spike and recovery
+---
+apiVersion: chaos-mesh.org/v1alpha1
+kind: PodChaos
+metadata:
+  name: order-service-pod-kill
+  namespace: chaos-testing
+  annotations:
+    experiment.chaos-mesh.org/description: "Kill order-service pod — validates K8s self-healing"
+spec:
+  action: pod-kill
+  mode: one        # Kill exactly one pod (not all — that would be too destructive for staging)
+  selector:
+    namespaces:
+      - staging
+    labelSelectors:
+      app: order-service
+  # duration: how long the experiment runs (kills one pod, then waits for duration to end)
+  duration: "30s"
+  # gracePeriod: 0 = immediate kill (SIGKILL), not graceful shutdown
+  # This simulates a node failure or OOM kill, not a rolling restart
+  gracePeriod: 0

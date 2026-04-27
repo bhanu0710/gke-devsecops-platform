@@ -1,0 +1,86 @@
+# RBAC — least-privilege access model for the platform.
+# Rule: developers can read staging (debug access), but not modify prod.
+# Rule: ops team can deploy to both environments.
+# Rule: CI service account has the minimum permissions needed to update Helm values.
+
+# ── Developer Role (staging read-only) ──────────────────────────────────────
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: developer
+  namespace: staging
+rules:
+  - apiGroups: [""]
+    resources: [pods, pods/log, services, configmaps, events]
+    verbs: [get, list, watch]
+  - apiGroups: [apps]
+    resources: [deployments, replicasets]
+    verbs: [get, list, watch]
+  - apiGroups: [autoscaling]
+    resources: [horizontalpodautoscalers]
+    verbs: [get, list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: developer-binding
+  namespace: staging
+subjects:
+  - kind: Group
+    name: developers
+    apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: Role
+  name: developer
+  apiGroup: rbac.authorization.k8s.io
+
+# ── Ops Role (deploy to prod) ────────────────────────────────────────────────
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ops
+  namespace: prod
+rules:
+  - apiGroups: [""]
+    resources: [pods, pods/log, services, configmaps, secrets, events]
+    verbs: [get, list, watch]
+  - apiGroups: [apps]
+    resources: [deployments, replicasets, statefulsets]
+    verbs: ["*"]
+  - apiGroups: [autoscaling]
+    resources: [horizontalpodautoscalers]
+    verbs: ["*"]
+  - apiGroups: [argoproj.io]
+    resources: [rollouts, analysisruns]
+    verbs: ["*"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ops-binding
+  namespace: prod
+subjects:
+  - kind: Group
+    name: ops-team
+    apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: Role
+  name: ops
+  apiGroup: rbac.authorization.k8s.io
+
+# ── ArgoCD ClusterRole ───────────────────────────────────────────────────────
+# ArgoCD needs cluster-wide read access to deploy to any namespace.
+# It also needs write access to the namespaces defined in the AppProject.
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: argocd-application-controller
+rules:
+  - apiGroups: ["*"]
+    resources: ["*"]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - nonResourceURLs: ["*"]
+    verbs: [get, list]

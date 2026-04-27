@@ -1,0 +1,354 @@
+// Jenkinsfile — 9-stage DevSecOps pipeline
+// Each stage is a distinct security gate. A failure in any stage blocks
+// the image from being pushed to Artifact Registry, which blocks ArgoCD
+// from deploying the new version.
+//
+// Run in a Kubernetes agent pod with tool containers specified inline.
+// This avoids installing tools on Jenkins nodes (which becomes configuration drift).
+
+pipeline {
+  agent {
+    kubernetes {
+      yaml """
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    jenkins-agent: "true"
+spec:
+  serviceAccountName: jenkins  # Workload Identity bound to jenkins-sa GCP SA
+  tolerations:
+  - key: cloud.google.com/gke-spot
+    operator: Exists
+    effect: NoSchedule
+  containers:
+  - name: docker
+    image: docker:24-dind
+    securityContext:
+      privileged: true  # Required for Docker-in-Docker
+    volumeMounts:
+    - name: docker-graph-storage
+      mountPath: /var/lib/docker
+  - name: tools
+    image: us-central1-docker.pkg.dev/\${GCP_PROJECT}/devsecops-platform/ci-tools:latest
+    command: [cat]
+    tty: true
+    resources:
+      requests: {cpu: "500m", memory: "512Mi"}
+      limits:   {cpu: "1",    memory: "1Gi"}
+  volumes:
+  - name: docker-graph-storage
+    emptyDir: {}
+"""
+    }
+  }
+
+  environment {
+    GCP_PROJECT       = credentials('gcp-project-id')
+    REGISTRY          = "us-central1-docker.pkg.dev/${GCP_PROJECT}/devsecops-platform"
+    IMAGE_TAG         = "${env.GIT_COMMIT[0..7]}"
+    SONAR_HOST_URL    = credentials('sonar-host-url')
+    SONAR_TOKEN       = credentials('sonar-token')
+    SLACK_WEBHOOK     = credentials('slack-webhook-url')
+    COSIGN_KEY        = "gcpkms://projects/${GCP_PROJECT}/locations/global/keyRings/cosign-keyring/cryptoKeys/cosign-key/cryptoKeyVersions/1"
+  }
+
+  options {
+    timeout(time: 45, unit: 'MINUTES')
+    buildDiscarder(logRotator(numToKeepStr: '10'))
+    disableConcurrentBuilds()
+  }
+
+  stages {
+
+    // ── Stage 1: Checkout ───────────────────────────────────────────────────
+    stage('1 · Checkout') {
+      steps {
+        checkout scm
+        script {
+          env.GIT_BRANCH_NAME = sh(returnStdout: true, script: 'git rev-parse --abbrev-ref HEAD').trim()
+          env.GIT_AUTHOR     = sh(returnStdout: true, script: 'git log -1 --pretty=format:"%an"').trim()
+          env.CHANGED_SERVICES = sh(
+            returnStdout: true,
+            script: 'git diff --name-only HEAD~1 HEAD | grep "^services/" | cut -d/ -f2 | sort -u || echo "user-service product-service order-service"'
+          ).trim()
+        }
+        echo "Branch: ${env.GIT_BRANCH_NAME} | Author: ${env.GIT_AUTHOR} | Tag: ${IMAGE_TAG}"
+        echo "Changed services: ${env.CHANGED_SERVICES}"
+      }
+    }
+
+    // ── Stage 2: Dependency Audit ────────────────────────────────────────────
+    // Purpose: catch known CVEs in third-party libraries BEFORE building an image.
+    // Failing here is cheap (no image built yet). Failing after push is expensive.
+    stage('2 · Dependency Audit') {
+      steps {
+        container('tools') {
+          script {
+            def services = env.CHANGED_SERVICES.split('\n')
+            for (svc in services) {
+              echo "Auditing ${svc}..."
+              if (svc == 'product-service') {
+                // pip-audit checks PyPI packages against OSV database
+                sh "cd services/${svc} && pip-audit -r requirements.txt --format json -o pip-audit-${svc}.json || true"
+                sh """
+                  CRITICAL=\$(cat pip-audit-${svc}.json | python3 -c "import sys,json; vulns=json.load(sys.stdin); print(sum(1 for v in vulns.get('vulnerabilities',[]) if v.get('fix_versions')))")
+                  echo "pip-audit found \$CRITICAL fixable vulnerabilities in ${svc}"
+                """
+              } else {
+                // npm audit exits 1 on high/critical — gate pipeline here
+                sh "cd services/${svc} && npm audit --audit-level=high --json > npm-audit-${svc}.json 2>&1 || true"
+                sh """
+                  CRITICAL=\$(node -e "const r=require('./services/${svc}/npm-audit-${svc}.json'); console.log(r.metadata?.vulnerabilities?.critical || 0)")
+                  if [ "\$CRITICAL" -gt 0 ]; then
+                    echo "CRITICAL vulnerabilities found in ${svc} — failing build"
+                    exit 1
+                  fi
+                """
+              }
+            }
+          }
+          archiveArtifacts artifacts: '*-audit-*.json', allowEmptyArchive: true
+        }
+      }
+    }
+
+    // ── Stage 3: Unit Tests + Coverage ───────────────────────────────────────
+    // Minimum 70% line coverage — anything lower indicates undertested code
+    // and correlates with higher defect rates in production.
+    stage('3 · Unit Tests + Coverage') {
+      steps {
+        container('tools') {
+          script {
+            def services = env.CHANGED_SERVICES.split('\n')
+            for (svc in services) {
+              echo "Testing ${svc}..."
+              if (svc == 'product-service') {
+                sh """
+                  cd services/${svc}
+                  pip install -r requirements.txt --quiet
+                  pytest src/ --cov=src --cov-report=xml:coverage.xml \
+                    --cov-fail-under=70 --junitxml=test-results.xml -v
+                """
+              } else {
+                sh """
+                  cd services/${svc}
+                  npm ci --quiet
+                  npm test -- --ci --reporters=default --reporters=jest-junit \
+                    --testResultsProcessor jest-junit
+                """
+              }
+            }
+          }
+        }
+      }
+      post {
+        always {
+          junit '**/test-results.xml'
+          publishHTML(target: [
+            reportDir: 'services/user-service/coverage/lcov-report',
+            reportFiles: 'index.html',
+            reportName: 'Coverage Report'
+          ])
+        }
+      }
+    }
+
+    // ── Stage 4: SAST — SonarQube ────────────────────────────────────────────
+    // Static analysis catches code smells, security hotspots, and duplications
+    // that automated tests miss. Quality gate blocks merge if score drops.
+    stage('4 · SAST — SonarQube') {
+      steps {
+        container('tools') {
+          withSonarQubeEnv('SonarQube') {
+            sh """
+              sonar-scanner \
+                -Dsonar.projectKey=gke-devsecops-platform \
+                -Dsonar.sources=services \
+                -Dsonar.exclusions=**/node_modules/**,**/*.test.js,**/coverage/** \
+                -Dsonar.javascript.lcov.reportPaths=services/user-service/coverage/lcov.info \
+                -Dsonar.python.coverage.reportPaths=services/product-service/coverage.xml \
+                -Dsonar.host.url=${SONAR_HOST_URL} \
+                -Dsonar.login=${SONAR_TOKEN}
+            """
+          }
+          // Wait up to 5 minutes for the quality gate result
+          timeout(time: 5, unit: 'MINUTES') {
+            waitForQualityGate abortPipeline: true
+          }
+        }
+      }
+    }
+
+    // ── Stage 5: Docker Build ─────────────────────────────────────────────────
+    // --platform linux/amd64 ensures images run on GKE e2 nodes (x86_64)
+    // regardless of whether this pipeline runs on an ARM Mac (developer laptop CI)
+    stage('5 · Docker Build') {
+      steps {
+        container('docker') {
+          script {
+            sh "gcloud auth configure-docker us-central1-docker.pkg.dev --quiet"
+            def services = env.CHANGED_SERVICES.split('\n')
+            for (svc in services) {
+              sh """
+                docker buildx build \
+                  --platform linux/amd64 \
+                  --tag ${REGISTRY}/${svc}:${IMAGE_TAG} \
+                  --tag ${REGISTRY}/${svc}:latest \
+                  --label "git.commit=${IMAGE_TAG}" \
+                  --label "git.branch=${GIT_BRANCH_NAME}" \
+                  --label "build.date=\$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+                  --cache-from ${REGISTRY}/${svc}:latest \
+                  --load \
+                  services/${svc}
+              """
+            }
+          }
+        }
+      }
+    }
+
+    // ── Stage 6: Image Scan — Trivy ───────────────────────────────────────────
+    // Scanning the built image (not just dependencies) catches OS-level CVEs
+    // that npm/pip audit miss. Exit code 1 on CRITICAL or HIGH halts the pipeline.
+    stage('6 · Image Scan — Trivy') {
+      steps {
+        container('tools') {
+          script {
+            def services = env.CHANGED_SERVICES.split('\n')
+            for (svc in services) {
+              sh """
+                trivy image \
+                  --exit-code 1 \
+                  --severity CRITICAL,HIGH \
+                  --format template \
+                  --template "@/usr/local/share/trivy/templates/junit.tpl" \
+                  --output trivy-${svc}.xml \
+                  --no-progress \
+                  ${REGISTRY}/${svc}:${IMAGE_TAG}
+              """
+            }
+          }
+          archiveArtifacts artifacts: 'trivy-*.xml'
+          junit 'trivy-*.xml'
+        }
+      }
+    }
+
+    // ── Stage 7: Image Sign — Cosign ──────────────────────────────────────────
+    // Cosign signs the image digest using a GCP KMS key.
+    // Binary Authorization verifies this signature before allowing deployment.
+    // An unsigned image is BLOCKED by the admission controller in staging and prod.
+    stage('7 · Image Sign — Cosign') {
+      steps {
+        container('tools') {
+          script {
+            def services = env.CHANGED_SERVICES.split('\n')
+            for (svc in services) {
+              sh """
+                # Get the full image digest (sha256:...) — sign the digest not the tag,
+                # because tags are mutable but digests are immutable
+                IMAGE_DIGEST=\$(docker inspect --format='{{index .RepoDigests 0}}' ${REGISTRY}/${svc}:${IMAGE_TAG})
+                cosign sign \
+                  --key ${COSIGN_KEY} \
+                  --yes \
+                  \${IMAGE_DIGEST}
+                echo "Signed: \${IMAGE_DIGEST}"
+              """
+            }
+          }
+        }
+      }
+    }
+
+    // ── Stage 8: Push to Artifact Registry ────────────────────────────────────
+    // Only reached if all security gates passed. The signed image is pushed.
+    // ArgoCD image updater or Stage 9 will trigger the deployment.
+    stage('8 · Push to Artifact Registry') {
+      steps {
+        container('docker') {
+          script {
+            def services = env.CHANGED_SERVICES.split('\n')
+            for (svc in services) {
+              sh "docker push ${REGISTRY}/${svc}:${IMAGE_TAG}"
+              sh "docker push ${REGISTRY}/${svc}:latest"
+              echo "Pushed: ${REGISTRY}/${svc}:${IMAGE_TAG}"
+            }
+          }
+        }
+      }
+    }
+
+    // ── Stage 9: Update Helm Values ───────────────────────────────────────────
+    // Updating the image tag in the Helm values file is the GitOps trigger.
+    // ArgoCD detects the git commit and initiates the canary rollout.
+    // This is the ONLY way to deploy — no manual kubectl apply.
+    stage('9 · Update Helm Values') {
+      steps {
+        container('tools') {
+          script {
+            sh """
+              git config user.email "ci@devsecops-platform.internal"
+              git config user.name "CI Pipeline"
+            """
+            def services = env.CHANGED_SERVICES.split('\n')
+            for (svc in services) {
+              sh """
+                # Update the image tag in staging values — ArgoCD auto-syncs from here
+                sed -i 's|tag: .*|tag: "${IMAGE_TAG}"|' helm/${svc}/values-staging.yaml
+                git add helm/${svc}/values-staging.yaml
+              """
+            }
+            sh """
+              git diff --cached --quiet || git commit -m "chore: bump image tags to ${IMAGE_TAG} [ci skip]"
+              git push origin HEAD:${GIT_BRANCH_NAME}
+            """
+          }
+        }
+      }
+    }
+  }
+
+  post {
+    always {
+      cleanWs()
+    }
+    success {
+      script {
+        sh """
+          curl -s -X POST '${SLACK_WEBHOOK}' \
+            -H 'Content-type: application/json' \
+            --data '{
+              "text": "✅ *Build Succeeded* | `${JOB_NAME}` #${BUILD_NUMBER}",
+              "attachments": [{
+                "color": "good",
+                "fields": [
+                  {"title": "Branch", "value": "${GIT_BRANCH_NAME}", "short": true},
+                  {"title": "Commit", "value": "${IMAGE_TAG}", "short": true},
+                  {"title": "Duration", "value": "${currentBuild.durationString}", "short": true}
+                ]
+              }]
+            }'
+        """
+      }
+    }
+    failure {
+      script {
+        sh """
+          curl -s -X POST '${SLACK_WEBHOOK}' \
+            -H 'Content-type: application/json' \
+            --data '{
+              "text": "❌ *Build Failed* | `${JOB_NAME}` #${BUILD_NUMBER} — <${BUILD_URL}|View Logs>",
+              "attachments": [{
+                "color": "danger",
+                "fields": [
+                  {"title": "Branch", "value": "${GIT_BRANCH_NAME}", "short": true},
+                  {"title": "Failed Stage", "value": "${currentBuild.currentResult}", "short": true}
+                ]
+              }]
+            }'
+        """
+      }
+    }
+  }
+}

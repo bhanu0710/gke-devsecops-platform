@@ -1,0 +1,37 @@
+# Default values — overridden by values-staging.yaml and values-prod.yaml
+replicaCount: 2
+team: platform
+
+image:
+  repository: us-central1-docker.pkg.dev/YOUR_PROJECT/devsecops-platform/user-service
+  tag: "latest"   # CI pipeline overwrites this with the commit SHA
+
+service:
+  port: 3000
+
+env: production
+
+workloadIdentity:
+  gcpServiceAccount: app-sa@YOUR_PROJECT.iam.gserviceaccount.com
+
+resources:
+  requests:
+    cpu: "100m"
+    memory: "128Mi"
+  limits:
+    cpu: "500m"
+    memory: "256Mi"
+
+autoscaling:
+  minReplicas: 2
+  maxReplicas: 10
+
+istio:
+  inject: "true"
+
+extraEnv:
+  - name: JWT_SECRET
+    valueFrom:
+      secretKeyRef:
+        name: app-secrets
+        key: jwt-secret

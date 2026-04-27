@@ -1,0 +1,73 @@
+# Prometheus recording rules — pre-compute expensive queries so dashboards load instantly.
+# Without recording rules, a Grafana dashboard querying 15 days of raw metrics
+# can take 30+ seconds to load. Recording rules reduce this to milliseconds.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: platform-recording-rules
+  namespace: monitoring
+  labels:
+    release: prometheus  # Must match Prometheus operator's ruleSelector
+spec:
+  groups:
+    - name: slo_recording_rules
+      interval: 30s
+      rules:
+        # Error rate per service — used by SLO dashboard and Argo Rollout analysis
+        - record: job:request_error_rate:ratio_rate5m
+          expr: |
+            sum(rate(http_requests_total{status=~"5.."}[5m])) by (job)
+            /
+            sum(rate(http_requests_total[5m])) by (job)
+
+        - record: job:request_error_rate:ratio_rate30m
+          expr: |
+            sum(rate(http_requests_total{status=~"5.."}[30m])) by (job)
+            /
+            sum(rate(http_requests_total[30m])) by (job)
+
+        # Latency percentiles — histogram_quantile is expensive; pre-compute it
+        - record: job:request_latency_p50:histogram_quantile
+          expr: |
+            histogram_quantile(0.50,
+              sum(rate(http_request_duration_seconds_bucket[5m])) by (job, le)
+            )
+
+        - record: job:request_latency_p95:histogram_quantile
+          expr: |
+            histogram_quantile(0.95,
+              sum(rate(http_request_duration_seconds_bucket[5m])) by (job, le)
+            )
+
+        - record: job:request_latency_p99:histogram_quantile
+          expr: |
+            histogram_quantile(0.99,
+              sum(rate(http_request_duration_seconds_bucket[5m])) by (job, le)
+            )
+
+        # Request throughput — requests per second per service
+        - record: job:request_rate:per_second
+          expr: |
+            sum(rate(http_requests_total[5m])) by (job)
+
+        # Availability — percentage of non-5xx requests
+        - record: job:availability:ratio_rate5m
+          expr: |
+            1 - (
+              sum(rate(http_requests_total{status=~"5.."}[5m])) by (job)
+              /
+              sum(rate(http_requests_total[5m])) by (job)
+            )
+
+    - name: node_recording_rules
+      interval: 60s
+      rules:
+        # Node CPU utilization — used by autoscaler dashboards
+        - record: node:cpu_utilization:ratio
+          expr: |
+            1 - avg(rate(node_cpu_seconds_total{mode="idle"}[5m])) by (node)
+
+        # Memory utilization
+        - record: node:memory_utilization:ratio
+          expr: |
+            1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)

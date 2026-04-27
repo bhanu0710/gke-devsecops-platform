@@ -1,0 +1,47 @@
+# K8sNoRootContainers — enforces runAsNonRoot: true on all containers.
+# Running as root inside a container significantly increases the blast radius
+# of a container escape vulnerability — the attacker would have root on the host.
+---
+apiVersion: templates.gatekeeper.sh/v1
+kind: ConstraintTemplate
+metadata:
+  name: k8snorootcontainers
+spec:
+  crd:
+    spec:
+      names:
+        kind: K8sNoRootContainers
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package k8snorootcontainers
+
+        violation[{"msg": msg}] {
+          container := input.review.object.spec.containers[_]
+          not container.securityContext.runAsNonRoot
+          msg := sprintf("Container '%v' must set runAsNonRoot: true", [container.name])
+        }
+
+        violation[{"msg": msg}] {
+          container := input.review.object.spec.containers[_]
+          container.securityContext.runAsUser == 0
+          msg := sprintf("Container '%v' must not run as root (UID 0)", [container.name])
+        }
+---
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sNoRootContainers
+metadata:
+  name: no-root-containers
+spec:
+  enforcementAction: deny
+  match:
+    kinds:
+      - apiGroups: [apps]
+        kinds: [Deployment, StatefulSet, DaemonSet]
+      - apiGroups: [argoproj.io]
+        kinds: [Rollout]
+    excludedNamespaces:
+      - kube-system
+      - istio-system
+      - gatekeeper-system
+      - chaos-testing  # Chaos Mesh requires privileged containers

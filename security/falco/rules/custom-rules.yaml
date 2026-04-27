@@ -1,0 +1,93 @@
+# Falco custom rules — runtime threat detection for the GKE cluster.
+# Falco reads Linux kernel syscalls via eBPF and evaluates these rules in real-time.
+# Alerts are forwarded to Slack via Falcosidekick.
+
+- list: allowed_processes
+  items: [node, python3, uvicorn, sh, bash, grpc_health_pro]
+
+- list: sensitive_files
+  items: [/etc/shadow, /etc/passwd, /root/.ssh, /var/run/secrets/kubernetes.io]
+
+# ── Rule 1: Shell spawned in a production container ──────────────────────────
+# Legitimate containers should never need a shell at runtime.
+# A shell in prod almost always means an intrusion or misconfiguration.
+- rule: Shell spawned in container
+  desc: Alert when a shell is spawned in any container
+  condition: >
+    spawned_process
+    and container
+    and shell_procs
+    and not proc.pname in (allowed_processes)
+  output: >
+    Shell spawned in container
+    (user=%user.name user_uid=%user.uid container=%container.name
+     image=%container.image.repository command=%proc.cmdline
+     pod=%k8s.pod.name namespace=%k8s.ns.name)
+  priority: WARNING
+  tags: [container, shell, mitre_execution]
+
+# ── Rule 2: kubectl exec detected in prod ────────────────────────────────────
+# kubectl exec bypasses all CI/CD and audit trails. Any exec in prod is suspicious.
+- rule: kubectl exec in production
+  desc: Alert on any kubectl exec in prod namespace
+  condition: >
+    spawned_process
+    and container
+    and k8s.ns.name = "prod"
+    and proc.name in (sh, bash, ash, dash)
+    and proc.pname = "kubectl"
+  output: >
+    kubectl exec detected in production
+    (user=%user.name pod=%k8s.pod.name ns=%k8s.ns.name
+     image=%container.image.repository)
+  priority: CRITICAL
+  tags: [container, kubectl, mitre_lateral_movement]
+
+# ── Rule 3: Unexpected outbound connection ───────────────────────────────────
+# Services should only connect to known endpoints (other services, GCP APIs).
+# An unexpected outbound connection from a pod could indicate a reverse shell
+# or data exfiltration attempt.
+- rule: Unexpected network connection from container
+  desc: Detect unexpected outbound connections from application containers
+  condition: >
+    outbound
+    and container
+    and not proc.name in (allowed_processes)
+    and not fd.sip in (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16)
+    and not k8s.ns.name in (kube-system, istio-system, monitoring)
+  output: >
+    Unexpected outbound connection
+    (container=%container.name pod=%k8s.pod.name
+     dest_ip=%fd.rip dest_port=%fd.rport proc=%proc.name)
+  priority: WARNING
+  tags: [network, container, mitre_exfiltration]
+
+# ── Rule 4: Sensitive file access ────────────────────────────────────────────
+# Application containers have no legitimate reason to read /etc/shadow or SSH keys.
+- rule: Sensitive file access in container
+  desc: Container reading sensitive host files
+  condition: >
+    open_read
+    and container
+    and fd.name in (sensitive_files)
+  output: >
+    Sensitive file read
+    (container=%container.name file=%fd.name
+     proc=%proc.cmdline pod=%k8s.pod.name)
+  priority: CRITICAL
+  tags: [filesystem, mitre_credential_access]
+
+# ── Rule 5: Privilege escalation attempt ─────────────────────────────────────
+- rule: Container privilege escalation attempt
+  desc: Detect setuid or setgid programs running in containers
+  condition: >
+    spawned_process
+    and container
+    and proc.is_suid_guid = true
+    and not proc.name in (su, sudo, newgrp)
+  output: >
+    Privilege escalation attempt
+    (container=%container.name proc=%proc.name
+     user=%user.name pod=%k8s.pod.name)
+  priority: CRITICAL
+  tags: [process, privilege_escalation]

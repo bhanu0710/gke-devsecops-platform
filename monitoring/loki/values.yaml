@@ -1,0 +1,55 @@
+# Loki Helm values — single-binary mode.
+# Single-binary runs all Loki components (ingester, querier, distributor) in one pod.
+# This uses ~200MB RAM vs ~2GB for a microservices Loki deployment — critical for staying
+# within the spot node resource budget.
+
+loki:
+  commonConfig:
+    replication_factor: 1  # Single replica — acceptable for demo; prod uses 3
+
+  storage:
+    type: gcs
+    gcs:
+      bucketNames:
+        chunks: "${GCP_PROJECT_ID}-loki-chunks"
+        ruler: "${GCP_PROJECT_ID}-loki-ruler"
+      chunkBufferSize: 0
+      requestTimeout: 0s
+
+  limits_config:
+    retention_period: 168h  # 7 days — enough for demo without high storage cost
+    ingestion_rate_mb: 10
+    ingestion_burst_size_mb: 20
+
+  schemaConfig:
+    configs:
+      - from: "2024-01-01"
+        store: tsdb
+        object_store: gcs
+        schema: v13
+        index:
+          prefix: loki_index_
+          period: 24h
+
+singleBinary:
+  replicas: 1
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "256Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+  serviceAccount:
+    annotations:
+      # Workload Identity gives Loki access to GCS bucket for log storage
+      iam.gke.io/gcp-service-account: "loki-sa@${GCP_PROJECT_ID}.iam.gserviceaccount.com"
+
+# Grafana Loki data source — added automatically when deployed via the platform chart
+grafana:
+  enabled: false  # Grafana is deployed separately via kube-prometheus-stack
+
+# FluentBit configuration for log collection
+# Deployed as DaemonSet — one pod per node collects all container logs
+test:
+  enabled: false

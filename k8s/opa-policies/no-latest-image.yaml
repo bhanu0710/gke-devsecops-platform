@@ -1,0 +1,49 @@
+# OPA Gatekeeper policy: K8sNoLatestImage
+# Prevents deploying containers with the 'latest' tag.
+# Rationale: 'latest' is mutable — the same tag can point to different images over time,
+# making rollbacks ambiguous and breaking Binary Authorization attestation (which is
+# tied to a specific digest, not a tag).
+
+---
+apiVersion: templates.gatekeeper.sh/v1
+kind: ConstraintTemplate
+metadata:
+  name: k8nolatestimage
+spec:
+  crd:
+    spec:
+      names:
+        kind: K8sNoLatestImage
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package k8nolatestimage
+
+        violation[{"msg": msg}] {
+          container := input.review.object.spec.containers[_]
+          endswith(container.image, ":latest")
+          msg := sprintf("Container '%v' uses ':latest' tag. Use a specific version tag.", [container.name])
+        }
+
+        violation[{"msg": msg}] {
+          container := input.review.object.spec.initContainers[_]
+          endswith(container.image, ":latest")
+          msg := sprintf("InitContainer '%v' uses ':latest' tag.", [container.name])
+        }
+---
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sNoLatestImage
+metadata:
+  name: no-latest-image
+spec:
+  enforcementAction: deny
+  match:
+    kinds:
+      - apiGroups: [apps]
+        kinds: [Deployment, StatefulSet, DaemonSet]
+      - apiGroups: [argoproj.io]
+        kinds: [Rollout]
+    excludedNamespaces:
+      - kube-system
+      - istio-system
+      - gatekeeper-system

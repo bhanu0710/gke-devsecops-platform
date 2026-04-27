@@ -1,0 +1,27 @@
+# platform-tools.yaml — manages all platform infrastructure via ArgoCD.
+# This means Prometheus, Vault, Istio, Falco, Chaos Mesh are all deployed
+# and kept in sync by ArgoCD — no manual helm install commands needed.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: platform-tools
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: platform
+  source:
+    repoURL: https://github.com/bhanupratapsingh/gke-devsecops-platform.git
+    targetRevision: main
+    path: helm/platform
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: false  # Never auto-delete platform components — require manual approval
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - RespectIgnoreDifferences=true

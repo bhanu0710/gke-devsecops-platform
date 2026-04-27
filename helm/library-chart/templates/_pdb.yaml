@@ -1,0 +1,17 @@
+{{- define "library-chart.pdb" -}}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ .Release.Name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "library-chart.labels" . | nindent 4 }}
+spec:
+  # minAvailable: 1 ensures at least one pod keeps running during voluntary disruptions
+  # (node upgrades, kubectl drain). Combined with >=2 replicas, this means
+  # a rolling update can proceed while maintaining service availability.
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}
+{{- end -}}

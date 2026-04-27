@@ -1,0 +1,76 @@
+# SLO definitions using Pyrra — generates PrometheusRule and Grafana dashboards automatically.
+# Pyrra takes these SLO specs and creates:
+# 1. Recording rules for error budget calculation
+# 2. Alerting rules for burn rate (both fast and slow)
+# 3. A Grafana dashboard with error budget remaining
+#
+# 99.9% availability = 43.8 min/month downtime budget (30-day window)
+
+---
+apiVersion: pyrra.dev/v1alpha1
+kind: ServiceLevelObjective
+metadata:
+  name: order-service-availability
+  namespace: monitoring
+spec:
+  description: "order-service must handle 99.9% of requests without 5xx errors"
+  target: "99.9"
+  window: 30d
+  indicator:
+    ratio:
+      errors:
+        metric: http_requests_total{job="order-service",status=~"5.."}
+      total:
+        metric: http_requests_total{job="order-service"}
+
+---
+apiVersion: pyrra.dev/v1alpha1
+kind: ServiceLevelObjective
+metadata:
+  name: user-service-availability
+  namespace: monitoring
+spec:
+  description: "user-service must handle 99.9% of requests without 5xx errors"
+  target: "99.9"
+  window: 30d
+  indicator:
+    ratio:
+      errors:
+        metric: http_requests_total{job="user-service",status=~"5.."}
+      total:
+        metric: http_requests_total{job="user-service"}
+
+---
+apiVersion: pyrra.dev/v1alpha1
+kind: ServiceLevelObjective
+metadata:
+  name: product-service-availability
+  namespace: monitoring
+spec:
+  description: "product-service must handle 99.9% of requests without 5xx errors"
+  target: "99.9"
+  window: 30d
+  indicator:
+    ratio:
+      errors:
+        metric: http_requests_total{job="product-service",status=~"5.."}
+      total:
+        metric: http_requests_total{job="product-service"}
+
+---
+# Latency SLO: 95% of requests must complete within 500ms
+apiVersion: pyrra.dev/v1alpha1
+kind: ServiceLevelObjective
+metadata:
+  name: order-service-latency
+  namespace: monitoring
+spec:
+  description: "95% of order-service requests must complete in < 500ms"
+  target: "95"
+  window: 30d
+  indicator:
+    latency:
+      success:
+        metric: http_request_duration_seconds_bucket{job="order-service",le="0.5"}
+      total:
+        metric: http_request_duration_seconds_count{job="order-service"}

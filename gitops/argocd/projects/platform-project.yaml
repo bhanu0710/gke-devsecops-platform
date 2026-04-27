@@ -1,0 +1,65 @@
+# ArgoCD Project — scopes what namespaces and repositories the platform applications can use.
+# Projects are a security boundary: a misconfigured Application in this project cannot
+# deploy to namespaces outside this list (e.g., kube-system).
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: platform
+  namespace: argocd
+spec:
+  description: GKE DevSecOps Platform project
+
+  sourceRepos:
+    - https://github.com/bhanupratapsingh/gke-devsecops-platform.git
+    - https://charts.helm.sh/stable
+    - https://prometheus-community.github.io/helm-charts
+    - https://helm.releases.hashicorp.com
+    - https://istio-release.storage.googleapis.com/charts
+
+  destinations:
+    - namespace: staging
+      server: https://kubernetes.default.svc
+    - namespace: prod
+      server: https://kubernetes.default.svc
+    - namespace: monitoring
+      server: https://kubernetes.default.svc
+    - namespace: security
+      server: https://kubernetes.default.svc
+    - namespace: argocd
+      server: https://kubernetes.default.svc
+    - namespace: chaos-testing
+      server: https://kubernetes.default.svc
+    - namespace: istio-system
+      server: https://kubernetes.default.svc
+    - namespace: jenkins
+      server: https://kubernetes.default.svc
+
+  clusterResourceWhitelist:
+    - group: '*'
+      kind: Namespace
+    - group: rbac.authorization.k8s.io
+      kind: ClusterRole
+    - group: rbac.authorization.k8s.io
+      kind: ClusterRoleBinding
+    - group: apiextensions.k8s.io
+      kind: CustomResourceDefinition
+
+  namespaceResourceWhitelist:
+    - group: '*'
+      kind: '*'
+
+  roles:
+    - name: developer
+      description: Read-only access to staging Applications
+      policies:
+        - p, proj:platform:developer, applications, get, platform/*, allow
+        - p, proj:platform:developer, applications, sync, platform/*-staging, allow
+      groups:
+        - developers
+
+    - name: ops
+      description: Full access to all Applications
+      policies:
+        - p, proj:platform:ops, applications, *, platform/*, allow
+      groups:
+        - ops-team

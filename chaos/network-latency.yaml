@@ -1,0 +1,35 @@
+# Chaos Experiment 2: Network Latency
+# Hypothesis: Adding 200ms latency to product-service should be absorbed by Istio's
+# retry policy (3 retries × 500ms timeout). order-service should not return errors,
+# only increased latency. The circuit breaker should NOT trip for 200ms.
+#
+# This validates:
+#   1. Istio DestinationRule retry policy absorbs transient latency
+#   2. order-service has a reasonable downstream timeout (> 200ms)
+#   3. Circuit breaker threshold (500ms) is correctly configured
+#
+# Run: kubectl apply -f chaos/network-latency.yaml
+# Watch: kubectl port-forward -n monitoring svc/prometheus-grafana 3000:80
+#        Open Grafana → Istio Traffic Dashboard → watch P99 latency spike for product-service
+---
+apiVersion: chaos-mesh.org/v1alpha1
+kind: NetworkChaos
+metadata:
+  name: product-service-latency
+  namespace: chaos-testing
+  annotations:
+    experiment.chaos-mesh.org/description: "200ms latency on product-service — validates Istio retries"
+spec:
+  action: delay
+  mode: all          # Apply to all product-service pods simultaneously
+  selector:
+    namespaces:
+      - staging
+    labelSelectors:
+      app: product-service
+  delay:
+    latency: "200ms"
+    correlation: "25"  # 25% jitter — simulates real network conditions, not artificial uniform delay
+    jitter: "50ms"
+  direction: to       # Inject latency on incoming traffic to product-service
+  duration: "120s"    # 2 minutes — long enough to see the effect in Grafana

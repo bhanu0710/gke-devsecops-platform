@@ -1,0 +1,60 @@
+# FluentBit DaemonSet — one instance per node, collects all container logs.
+# Adds Kubernetes metadata (pod name, namespace, labels) so LogQL queries
+# can filter by service without knowing the exact pod name.
+
+config:
+  inputs: |
+    [INPUT]
+        Name              tail
+        Tag               kube.*
+        Path              /var/log/containers/*.log
+        multiline.parser  docker, cri
+        Refresh_Interval  5
+        Mem_Buf_Limit     50MB
+        Skip_Long_Lines   On
+
+  filters: |
+    # Enrich logs with Kubernetes metadata — critical for filtering by service in Grafana
+    [FILTER]
+        Name                kubernetes
+        Match               kube.*
+        Kube_URL            https://kubernetes.default.svc:443
+        Kube_CA_File        /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        Kube_Token_File     /var/run/secrets/kubernetes.io/serviceaccount/token
+        Kube_Tag_Prefix     kube.var.log.containers.
+        Merge_Log           On
+        Merge_Log_Key       log_processed
+        K8S-Logging.Parser  On
+        K8S-Logging.Exclude On
+        Annotations         Off
+        Labels              On
+
+    # Drop high-volume system logs that aren't useful for debugging
+    [FILTER]
+        Name    grep
+        Match   kube.*
+        Exclude $kubernetes['namespace_name'] kube-system
+
+  outputs: |
+    [OUTPUT]
+        Name            loki
+        Match           kube.*
+        Host            loki-gateway.monitoring.svc.cluster.local
+        Port            80
+        Labels          job=fluentbit, namespace=$kubernetes['namespace_name'], pod=$kubernetes['pod_name'], container=$kubernetes['container_name']
+        Label_keys      $level,$severity,$msg
+        auto_kubernetes_labels on
+        line_format     json
+
+tolerations:
+  - key: cloud.google.com/gke-spot
+    operator: Exists
+    effect: NoSchedule
+
+resources:
+  requests:
+    cpu: "50m"
+    memory: "64Mi"
+  limits:
+    cpu: "200m"
+    memory: "128Mi"
