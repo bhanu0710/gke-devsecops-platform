@@ -44,6 +44,6 @@ Thumbs.db
 dist/
 build/
 
-# Helm chart dependencies
-helm/*/charts/
-helm/*/Chart.lock
+# Helm chart dependencies — NOT ignored so ArgoCD can render file:// deps
+# helm/*/charts/
+# helm/*/Chart.lock
