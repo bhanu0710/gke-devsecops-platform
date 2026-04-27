@@ -8,7 +8,7 @@
 > every DevOps discipline — IaC, GitOps, DevSecOps, Observability, and Chaos Engineering —
 > in one cohesive system. Built by **Bhanu Pratap Singh** as a portfolio project.
 
-[![CI](https://github.com/bhanupratapsingh/gke-devsecops-platform/workflows/CI/badge.svg)](https://github.com/bhanupratapsingh/gke-devsecops-platform/actions)
+[![CI](https://github.com/bhanu0710/gke-devsecops-platform/workflows/CI/badge.svg)](https://github.com/bhanu0710/gke-devsecops-platform/actions)
 [![Terraform](https://img.shields.io/badge/Terraform-v1.6%2B-7B42BC?logo=terraform)](terraform/)
 [![GKE](https://img.shields.io/badge/GKE-Standard-4285F4?logo=google-cloud)](https://cloud.google.com/kubernetes-engine)
 [![ArgoCD](https://img.shields.io/badge/GitOps-ArgoCD-EF7B4D?logo=argo)](gitops/)
@@ -195,7 +195,7 @@ kubectl argo rollouts get rollout order-service -n staging --watch
 ```bash
 # Prerequisites: gcloud, terraform ≥1.6, helm ≥3.14, kubectl, git, docker
 
-git clone https://github.com/bhanupratapsingh/gke-devsecops-platform
+git clone https://github.com/bhanu0710/gke-devsecops-platform
 cd gke-devsecops-platform
 
 # 1. GCP project setup (enable APIs, create TF state bucket, SA)
@@ -278,7 +278,7 @@ DevOps & Cloud Engineer | Mumbai, India
 
 AWS Certified Solutions Architect | HashiCorp Terraform Associate | Oracle Cloud DevOps Professional
 
-[![LinkedIn](https://img.shields.io/badge/LinkedIn-Bhanu_Pratap_Singh-0077B5?logo=linkedin)](https://linkedin.com/in/bhanupratapsingh)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-Bhanu_Pratap_Singh-0077B5?logo=linkedin)](https://linkedin.com/in/bhanu0710)
 [![GitHub](https://img.shields.io/badge/GitHub-bhanu0710-181717?logo=github)](https://github.com/bhanu0710)
 
 ---

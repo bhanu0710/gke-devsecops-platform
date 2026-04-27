@@ -3,7 +3,7 @@ replicaCount: 2
 team: platform
 
 image:
-  repository: us-central1-docker.pkg.dev/YOUR_PROJECT/devsecops-platform/user-service
+  repository: us-central1-docker.pkg.dev/dev-project-494110/devsecops-platform/user-service
   tag: "latest"   # CI pipeline overwrites this with the commit SHA
 
 service:
@@ -12,7 +12,7 @@ service:
 env: production
 
 workloadIdentity:
-  gcpServiceAccount: app-sa@YOUR_PROJECT.iam.gserviceaccount.com
+  gcpServiceAccount: app-sa@dev-project-494110.iam.gserviceaccount.com
 
 resources:
   requests:

@@ -10,7 +10,7 @@ spec:
   description: GKE DevSecOps Platform project
 
   sourceRepos:
-    - https://github.com/bhanupratapsingh/gke-devsecops-platform.git
+    - https://github.com/bhanu0710/gke-devsecops-platform.git
     - https://charts.helm.sh/stable
     - https://prometheus-community.github.io/helm-charts
     - https://helm.releases.hashicorp.com

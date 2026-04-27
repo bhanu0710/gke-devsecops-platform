@@ -23,7 +23,7 @@ spec:
           effect: NoSchedule
       containers:
         - name: user-service
-          image: us-central1-docker.pkg.dev/YOUR_PROJECT/devsecops-platform/user-service:latest
+          image: us-central1-docker.pkg.dev/dev-project-494110/devsecops-platform/user-service:latest
           ports:
             - containerPort: 3000
               name: http

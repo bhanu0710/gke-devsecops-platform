@@ -14,7 +14,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/bhanupratapsingh/gke-devsecops-platform.git
+    repoURL: https://github.com/bhanu0710/gke-devsecops-platform.git
     targetRevision: main
     path: gitops/argocd/applications
   destination:

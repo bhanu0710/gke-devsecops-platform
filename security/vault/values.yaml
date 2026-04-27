@@ -34,14 +34,14 @@ server:
         }
 
         storage "gcs" {
-          bucket     = "${GCP_PROJECT_ID}-vault-storage"
+          bucket     = "dev-project-494110-vault-storage"
           ha_enabled = "true"
         }
 
         # GCP KMS auto-unseal — Vault uses the KMS key to wrap/unwrap its master key.
         # If the KMS key is rotated, Vault automatically re-wraps with the new version.
         seal "gcpckms" {
-          project    = "${GCP_PROJECT_ID}"
+          project    = "dev-project-494110"
           region     = "global"
           key_ring   = "vault-keyring"
           crypto_key = "vault-unseal-key"
@@ -65,7 +65,7 @@ server:
   # Vault uses its own service account with Workload Identity to access KMS and GCS
   serviceAccount:
     annotations:
-      iam.gke.io/gcp-service-account: "vault-sa@${GCP_PROJECT_ID}.iam.gserviceaccount.com"
+      iam.gke.io/gcp-service-account: "vault-sa@dev-project-494110.iam.gserviceaccount.com"
 
 ui:
   enabled: true

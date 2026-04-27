@@ -23,7 +23,7 @@ spec:
           effect: NoSchedule
       containers:
         - name: order-service
-          image: us-central1-docker.pkg.dev/YOUR_PROJECT/devsecops-platform/order-service:latest
+          image: us-central1-docker.pkg.dev/dev-project-494110/devsecops-platform/order-service:latest
           ports:
             - containerPort: 3001
               name: http
