@@ -27,3 +27,6 @@ autoscaling:
 
 istio:
   inject: "true"
+
+securityContext:
+  runAsUser: 1001  # python:3.12-slim appuser UID
