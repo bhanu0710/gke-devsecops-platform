@@ -19,7 +19,6 @@ spec:
   selector:
     matchLabels:
       app: {{ .Release.Name }}
-      version: {{ .Values.image.tag | quote }}
   template:
     metadata:
       labels:
