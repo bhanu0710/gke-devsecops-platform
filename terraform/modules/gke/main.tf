@@ -85,12 +85,13 @@ resource "google_container_cluster" "main" {
     }
   }
 
-  # Maintenance window: run upgrades at 3am UTC Sunday to minimise disruption
+  # Maintenance window: run upgrades 3–7am UTC daily.
+  # FREQ=WEEKLY;BYDAY=SU only yields ~16h/32-day period; GKE requires 48h minimum.
   maintenance_policy {
     recurring_window {
-      start_time = "2024-01-07T03:00:00Z"
-      end_time   = "2024-01-07T07:00:00Z"
-      recurrence = "FREQ=WEEKLY;BYDAY=SU"
+      start_time = "2024-01-01T03:00:00Z"
+      end_time   = "2024-01-01T07:00:00Z"
+      recurrence = "FREQ=DAILY"
     }
   }
 

@@ -35,10 +35,42 @@ provider "google-beta" {
   region  = var.region
 }
 
-# ── IAM service accounts (created first — GKE and Artifact Registry depend on them) ──
+# ── IAM phase 1: service accounts only — no WI bindings (GKE doesn't exist yet) ──
 module "iam" {
-  source     = "../../modules/iam"
-  project_id = var.project_id
+  source             = "../../modules/iam"
+  project_id         = var.project_id
+  create_wi_bindings = false
+}
+
+# ── IAM phase 2: WI bindings — inline resources so depends_on = [module.gke] works ──
+# These can't be in the iam module because module.gke depends on module.iam (circular).
+# The svc.id.goog pool is created by GKE; bindings must come after.
+resource "google_service_account_iam_member" "argocd_wi" {
+  service_account_id = "projects/${var.project_id}/serviceAccounts/argocd-sa@${var.project_id}.iam.gserviceaccount.com"
+  role               = "roles/iam.workloadIdentityUser"
+  member             = "serviceAccount:${var.project_id}.svc.id.goog[argocd/argocd-server]"
+  depends_on         = [module.iam, module.gke]
+}
+
+resource "google_service_account_iam_member" "jenkins_wi" {
+  service_account_id = "projects/${var.project_id}/serviceAccounts/jenkins-sa@${var.project_id}.iam.gserviceaccount.com"
+  role               = "roles/iam.workloadIdentityUser"
+  member             = "serviceAccount:${var.project_id}.svc.id.goog[jenkins/jenkins]"
+  depends_on         = [module.iam, module.gke]
+}
+
+resource "google_service_account_iam_member" "app_wi_staging" {
+  service_account_id = "projects/${var.project_id}/serviceAccounts/app-sa@${var.project_id}.iam.gserviceaccount.com"
+  role               = "roles/iam.workloadIdentityUser"
+  member             = "serviceAccount:${var.project_id}.svc.id.goog[staging/app-workload]"
+  depends_on         = [module.iam, module.gke]
+}
+
+resource "google_service_account_iam_member" "app_wi_prod" {
+  service_account_id = "projects/${var.project_id}/serviceAccounts/app-sa@${var.project_id}.iam.gserviceaccount.com"
+  role               = "roles/iam.workloadIdentityUser"
+  member             = "serviceAccount:${var.project_id}.svc.id.goog[prod/app-workload]"
+  depends_on         = [module.iam, module.gke]
 }
 
 # ── VPC ──────────────────────────────────────────────────────────────────────

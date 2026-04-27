@@ -73,11 +73,11 @@ resource "google_project_iam_member" "sa_roles" {
 # This is the magic that lets pods call GCP APIs without JSON keys.
 # Binding is: k8s SA in namespace X can act as GCP SA Y
 resource "google_service_account_iam_member" "workload_identity_bindings" {
-  for_each = {
+  for_each = var.create_wi_bindings ? {
     for sa_name, sa_config in local.service_accounts :
     sa_name => sa_config
     if sa_config.namespace != "" # node-sa has no K8s SA binding
-  }
+  } : {}
 
   service_account_id = google_service_account.accounts[each.key].name
   role               = "roles/iam.workloadIdentityUser"
@@ -86,6 +86,8 @@ resource "google_service_account_iam_member" "workload_identity_bindings" {
 
 # Extra binding for app-sa in prod namespace (same GCP SA, different K8s namespace)
 resource "google_service_account_iam_member" "app_sa_prod_binding" {
+  count = var.create_wi_bindings ? 1 : 0
+
   service_account_id = google_service_account.accounts["app-sa"].name
   role               = "roles/iam.workloadIdentityUser"
   member             = "serviceAccount:${var.project_id}.svc.id.goog[prod/app-workload]"

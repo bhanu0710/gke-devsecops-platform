@@ -23,7 +23,7 @@ kubectl apply -f k8s/namespaces/namespaces.yaml
 # ── ArgoCD ────────────────────────────────────────────────────────────────────
 info "Installing ArgoCD..."
 kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
-kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+kubectl apply -n argocd --server-side -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
 
 info "Waiting for ArgoCD to be ready..."
 kubectl rollout status deployment/argocd-server -n argocd --timeout=300s
