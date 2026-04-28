@@ -3,7 +3,7 @@ team: platform
 
 image:
   repository: us-central1-docker.pkg.dev/dev-project-494110/devsecops-platform/product-service
-  tag: "9cef6a2"
+  tag: "fc54c67f"
 
 service:
   port: 8000
