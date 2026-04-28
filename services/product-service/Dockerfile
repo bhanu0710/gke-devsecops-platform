@@ -2,8 +2,8 @@
 FROM python:3.12-slim AS builder
 WORKDIR /app
 
-# Create an isolated venv — guarantees pkg_resources, setuptools, etc. are
-# fully installed (pip install --target skips pkg_resources bootstrap).
+# Create an isolated venv — guarantees setuptools/pkg_resources are present.
+# pip install --target skips the pkg_resources bootstrap, so we use venv instead.
 RUN python -m venv /app/venv
 COPY requirements.txt .
 RUN /app/venv/bin/pip install --no-cache-dir -r requirements.txt
@@ -13,7 +13,7 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-# Copy the fully-baked venv, not bare package files
+# Copy the fully-baked venv (includes pkg_resources, setuptools, all deps)
 COPY --from=builder /app/venv /app/venv
 COPY src/ ./src/
 
@@ -24,7 +24,7 @@ USER appuser
 EXPOSE 8000
 
 ENV PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1 \
-    PATH="/app/venv/bin:$PATH"
+    PYTHONDONTWRITEBYTECODE=1
 
-CMD ["python", "-m", "uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Use the venv's uvicorn directly — avoids PATH/symlink venv-detection issues
+CMD ["/app/venv/bin/uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
