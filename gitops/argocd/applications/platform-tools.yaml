@@ -16,7 +16,7 @@ spec:
     path: helm/platform
   destination:
     server: https://kubernetes.default.svc
-    namespace: argocd
+    namespace: chaos-mesh   # Chaos Mesh installs into its own namespace
   syncPolicy:
     automated:
       prune: false  # Never auto-delete platform components — require manual approval

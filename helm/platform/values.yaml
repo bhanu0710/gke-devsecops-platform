@@ -1,0 +1,58 @@
+# Set enabled: true when the cluster has headroom (nodes currently at ~94% CPU requests
+# on free-tier spot VMs). Run: helm upgrade platform helm/platform --set chaosMesh.enabled=true
+chaosMesh:
+  enabled: false
+
+chaos-mesh:
+  # Minimal footprint — 1 replica each, spot-tolerant
+  controllerManager:
+    replicaCount: 1
+    tolerations:
+      - key: cloud.google.com/gke-spot
+        operator: Exists
+        effect: NoSchedule
+    resources:
+      requests:
+        cpu: "50m"
+        memory: "64Mi"
+      limits:
+        cpu: "500m"
+        memory: "512Mi"
+
+  chaosDaemon:
+    tolerations:
+      - key: cloud.google.com/gke-spot
+        operator: Exists
+        effect: NoSchedule
+    resources:
+      requests:
+        cpu: "50m"
+        memory: "64Mi"
+      limits:
+        cpu: "500m"
+        memory: "512Mi"
+
+  dashboard:
+    enabled: true
+    replicaCount: 1
+    tolerations:
+      - key: cloud.google.com/gke-spot
+        operator: Exists
+        effect: NoSchedule
+    resources:
+      requests:
+        cpu: "25m"
+        memory: "32Mi"
+      limits:
+        cpu: "200m"
+        memory: "256Mi"
+    # Use NodePort to avoid GCP load balancer cost
+    service:
+      type: ClusterIP
+
+  dnsServer:
+    create: true
+    tolerations:
+      - key: cloud.google.com/gke-spot
+        operator: Exists
+        effect: NoSchedule

@@ -1,0 +1,370 @@
+---
+# Services Overview Dashboard
+# Auto-loaded by grafana-sc-dashboard sidecar (watches label grafana_dashboard=1)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-services-overview
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+data:
+  services-overview.json: |
+    {
+      "title": "Services Overview",
+      "uid": "services-overview",
+      "tags": ["devsecops", "services"],
+      "timezone": "browser",
+      "refresh": "30s",
+      "time": { "from": "now-1h", "to": "now" },
+      "panels": [
+        {
+          "id": 1,
+          "title": "Request Rate (all services)",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+          "targets": [
+            {
+              "expr": "sum(rate(http_requests_total{namespace=~\"staging|prod\"}[5m])) by (namespace, pod)",
+              "legendFormat": "{{namespace}}/{{pod}}"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "unit": "reqps", "color": { "mode": "palette-classic" } }
+          }
+        },
+        {
+          "id": 2,
+          "title": "Error Rate (5xx) by Service",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+          "targets": [
+            {
+              "expr": "sum(rate(http_requests_total{status=~\"5..\",namespace=~\"staging|prod\"}[5m])) by (namespace, pod)",
+              "legendFormat": "{{namespace}}/{{pod}}"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "unit": "reqps", "color": { "mode": "fixed", "fixedColor": "red" } }
+          }
+        },
+        {
+          "id": 3,
+          "title": "p99 Latency by Service",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+          "targets": [
+            {
+              "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{namespace=~\"staging|prod\"}[5m])) by (le, pod, namespace))",
+              "legendFormat": "p99 {{namespace}}/{{pod}}"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "unit": "s", "color": { "mode": "palette-classic" } }
+          }
+        },
+        {
+          "id": 4,
+          "title": "Pod Restarts",
+          "type": "stat",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+          "targets": [
+            {
+              "expr": "kube_pod_container_status_restarts_total{namespace=~\"staging|prod\"}",
+              "legendFormat": "{{namespace}}/{{pod}}"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "unit": "short", "color": { "mode": "thresholds" },
+              "thresholds": { "steps": [
+                { "color": "green", "value": 0 },
+                { "color": "yellow", "value": 3 },
+                { "color": "red", "value": 10 }
+              ]}
+            }
+          },
+          "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "auto", "colorMode": "background" }
+        },
+        {
+          "id": 5,
+          "title": "CPU Usage by Pod",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+          "targets": [
+            {
+              "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=~\"staging|prod\",container!=\"\",container!=\"POD\"}[5m])) by (pod, namespace)",
+              "legendFormat": "{{namespace}}/{{pod}}"
+            }
+          ],
+          "fieldConfig": { "defaults": { "unit": "short" } }
+        },
+        {
+          "id": 6,
+          "title": "Memory Usage by Pod",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+          "targets": [
+            {
+              "expr": "sum(container_memory_working_set_bytes{namespace=~\"staging|prod\",container!=\"\",container!=\"POD\"}) by (pod, namespace)",
+              "legendFormat": "{{namespace}}/{{pod}}"
+            }
+          ],
+          "fieldConfig": { "defaults": { "unit": "bytes" } }
+        }
+      ],
+      "schemaVersion": 38
+    }
+---
+# Product Service Dashboard (Python FastAPI — richer metrics from prometheus_fastapi_instrumentator)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-product-service
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+data:
+  product-service.json: |
+    {
+      "title": "Product Service",
+      "uid": "product-service",
+      "tags": ["devsecops", "product-service", "python"],
+      "timezone": "browser",
+      "refresh": "30s",
+      "time": { "from": "now-1h", "to": "now" },
+      "templating": {
+        "list": [
+          {
+            "name": "namespace",
+            "type": "custom",
+            "options": [
+              { "text": "staging", "value": "staging" },
+              { "text": "prod", "value": "prod" }
+            ],
+            "current": { "text": "staging", "value": "staging" }
+          }
+        ]
+      },
+      "panels": [
+        {
+          "id": 1,
+          "title": "Request Rate",
+          "type": "stat",
+          "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+          "targets": [
+            {
+              "expr": "sum(rate(http_requests_total{namespace=\"$namespace\",pod=~\"product-service.*\"}[5m]))",
+              "legendFormat": "req/s"
+            }
+          ],
+          "fieldConfig": { "defaults": { "unit": "reqps" } },
+          "options": { "reduceOptions": { "calcs": ["lastNotNull"] } }
+        },
+        {
+          "id": 2,
+          "title": "Error Rate",
+          "type": "stat",
+          "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+          "targets": [
+            {
+              "expr": "sum(rate(http_requests_total{namespace=\"$namespace\",pod=~\"product-service.*\",status=~\"5..\"}[5m]))",
+              "legendFormat": "errors/s"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "unit": "reqps", "color": { "mode": "thresholds" },
+              "thresholds": { "steps": [
+                { "color": "green", "value": 0 },
+                { "color": "red", "value": 0.01 }
+              ]}
+            }
+          },
+          "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
+        },
+        {
+          "id": 3,
+          "title": "p50 Latency",
+          "type": "stat",
+          "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+          "targets": [
+            {
+              "expr": "histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket{namespace=\"$namespace\",pod=~\"product-service.*\"}[5m])) by (le))",
+              "legendFormat": "p50"
+            }
+          ],
+          "fieldConfig": { "defaults": { "unit": "s" } },
+          "options": { "reduceOptions": { "calcs": ["lastNotNull"] } }
+        },
+        {
+          "id": 4,
+          "title": "p99 Latency",
+          "type": "stat",
+          "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
+          "targets": [
+            {
+              "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{namespace=\"$namespace\",pod=~\"product-service.*\"}[5m])) by (le))",
+              "legendFormat": "p99"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "unit": "s", "color": { "mode": "thresholds" },
+              "thresholds": { "steps": [
+                { "color": "green", "value": 0 },
+                { "color": "yellow", "value": 0.5 },
+                { "color": "red", "value": 1 }
+              ]}
+            }
+          },
+          "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
+        },
+        {
+          "id": 5,
+          "title": "Requests by Endpoint",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 24, "x": 0, "y": 4 },
+          "targets": [
+            {
+              "expr": "sum(rate(http_requests_total{namespace=\"$namespace\",pod=~\"product-service.*\"}[5m])) by (handler, method, status)",
+              "legendFormat": "{{method}} {{handler}} ({{status}})"
+            }
+          ],
+          "fieldConfig": { "defaults": { "unit": "reqps" } }
+        },
+        {
+          "id": 6,
+          "title": "Latency Heatmap",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+          "targets": [
+            {
+              "expr": "histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket{namespace=\"$namespace\",pod=~\"product-service.*\"}[5m])) by (le, handler))",
+              "legendFormat": "p50 {{handler}}"
+            },
+            {
+              "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{namespace=\"$namespace\",pod=~\"product-service.*\"}[5m])) by (le, handler))",
+              "legendFormat": "p95 {{handler}}"
+            },
+            {
+              "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{namespace=\"$namespace\",pod=~\"product-service.*\"}[5m])) by (le, handler))",
+              "legendFormat": "p99 {{handler}}"
+            }
+          ],
+          "fieldConfig": { "defaults": { "unit": "s" } }
+        },
+        {
+          "id": 7,
+          "title": "Python GC Collections",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+          "targets": [
+            {
+              "expr": "rate(python_gc_collections_total{namespace=\"$namespace\",pod=~\"product-service.*\"}[5m])",
+              "legendFormat": "gen{{generation}} GC/s"
+            }
+          ],
+          "fieldConfig": { "defaults": { "unit": "short" } }
+        }
+      ],
+      "schemaVersion": 38
+    }
+---
+# Node.js Services Dashboard (user-service + order-service)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-nodejs-services
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+data:
+  nodejs-services.json: |
+    {
+      "title": "Node.js Services (user + order)",
+      "uid": "nodejs-services",
+      "tags": ["devsecops", "nodejs"],
+      "timezone": "browser",
+      "refresh": "30s",
+      "time": { "from": "now-1h", "to": "now" },
+      "templating": {
+        "list": [
+          {
+            "name": "service",
+            "type": "custom",
+            "options": [
+              { "text": "user-service-staging", "value": "user-service-staging" },
+              { "text": "order-service-staging", "value": "order-service-staging" },
+              { "text": "user-service-prod", "value": "user-service-prod" },
+              { "text": "order-service-prod", "value": "order-service-prod" }
+            ],
+            "current": { "text": "user-service-staging", "value": "user-service-staging" }
+          }
+        ]
+      },
+      "panels": [
+        {
+          "id": 1,
+          "title": "Request Rate",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+          "targets": [
+            {
+              "expr": "sum(rate(http_requests_total{pod=~\"$service.*\"}[5m])) by (pod)",
+              "legendFormat": "{{pod}}"
+            }
+          ],
+          "fieldConfig": { "defaults": { "unit": "reqps" } }
+        },
+        {
+          "id": 2,
+          "title": "p99 Latency",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+          "targets": [
+            {
+              "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{pod=~\"$service.*\"}[5m])) by (le, pod))",
+              "legendFormat": "p99 {{pod}}"
+            }
+          ],
+          "fieldConfig": { "defaults": { "unit": "s" } }
+        },
+        {
+          "id": 3,
+          "title": "Event Loop Lag",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+          "targets": [
+            {
+              "expr": "nodejs_eventloop_lag_seconds{pod=~\"$service.*\"}",
+              "legendFormat": "{{pod}} event loop lag"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "unit": "s", "color": { "mode": "thresholds" },
+              "thresholds": { "steps": [
+                { "color": "green", "value": 0 },
+                { "color": "yellow", "value": 0.1 },
+                { "color": "red", "value": 0.5 }
+              ]}
+            }
+          }
+        },
+        {
+          "id": 4,
+          "title": "Heap Usage",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+          "targets": [
+            {
+              "expr": "nodejs_heap_size_used_bytes{pod=~\"$service.*\"}",
+              "legendFormat": "heap used {{pod}}"
+            },
+            {
+              "expr": "nodejs_heap_size_total_bytes{pod=~\"$service.*\"}",
+              "legendFormat": "heap total {{pod}}"
+            }
+          ],
+          "fieldConfig": { "defaults": { "unit": "bytes" } }
+        }
+      ],
+      "schemaVersion": 38
+    }

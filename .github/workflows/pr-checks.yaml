@@ -1,0 +1,102 @@
+# PR-specific checks — these are required status checks in branch protection rules.
+# A PR cannot be merged unless all of these pass.
+name: PR Checks
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  # ── OWASP Dependency Check ─────────────────────────────────────────────────
+  # More comprehensive than npm audit — checks NVD database for all transitive deps
+  dependency-check:
+    name: OWASP Dependency Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run OWASP Dependency Check
+        uses: dependency-check/Dependency-Check_Action@main
+        with:
+          project: 'gke-devsecops-platform'
+          path: 'services/'
+          format: 'HTML'
+          args: >
+            --enableRetired
+            --failOnCVSS 7
+
+      - name: Upload OWASP report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: owasp-report
+          path: ${{ github.workspace }}/reports/
+
+  # ── Checkov IaC Scan ─────────────────────────────────────────────────────────
+  # Scans only the Terraform files changed in this PR to avoid noise from unrelated files.
+  checkov-scan:
+    name: Checkov IaC Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Need full history to diff against base branch
+
+      - name: Get changed Terraform files
+        id: changed-tf
+        run: |
+          CHANGED=$(git diff --name-only origin/${{ github.base_ref }}...HEAD | grep '\.tf$' || echo "")
+          echo "files=$CHANGED" >> $GITHUB_OUTPUT
+          echo "Changed TF files: $CHANGED"
+
+      - name: Run Checkov on changed files
+        uses: bridgecrewio/checkov-action@master
+        if: steps.changed-tf.outputs.files != ''
+        with:
+          directory: terraform/
+          framework: terraform
+          output_format: sarif
+          output_file_path: checkov.sarif
+          soft_fail: false
+          skip_check: CKV_GCP_24  # Skip: GKE basic auth (we use Workload Identity)
+
+      - name: Upload Checkov SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        if: steps.changed-tf.outputs.files != ''
+        with:
+          sarif_file: checkov.sarif
+
+  # ── Helm Lint ─────────────────────────────────────────────────────────────────
+  helm-lint:
+    name: Helm Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: azure/setup-helm@v4
+        with:
+          version: 'v3.14.0'
+
+      - name: Lint all Helm charts
+        run: |
+          for chart in helm/user-service helm/product-service helm/order-service; do
+            echo "=== Linting $chart ==="
+            helm lint $chart --strict
+            helm lint $chart -f $chart/values-staging.yaml
+          done
+
+  # ── SonarQube Analysis ────────────────────────────────────────────────────────
+  sonarqube:
+    name: SonarQube Analysis
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: SonarQube Scan
+        uses: SonarSource/sonarqube-scan-action@master
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}

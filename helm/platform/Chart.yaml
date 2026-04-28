@@ -1,0 +1,16 @@
+apiVersion: v2
+name: platform
+description: |
+  Umbrella chart for platform-level tools:
+  - Chaos Mesh (chaos engineering)
+  - Argo Rollouts (progressive delivery)
+  Future: Vault, Istio, OPA Gatekeeper, Falco
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+
+dependencies:
+  - name: chaos-mesh
+    version: "2.6.3"
+    repository: "https://charts.chaos-mesh.org"
+    condition: chaosMesh.enabled
