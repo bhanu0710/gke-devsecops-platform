@@ -68,6 +68,8 @@ spec:
             matchLabels:
               kubernetes.io/metadata.name: ingress-nginx
       ports:
+        - port: 80    # ui-service
+          protocol: TCP
         - port: 3000
           protocol: TCP
         - port: 3001
