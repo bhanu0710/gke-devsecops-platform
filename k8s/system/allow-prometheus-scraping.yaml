@@ -1,0 +1,53 @@
+---
+# Allow Prometheus (in monitoring namespace) to scrape /metrics from all
+# service pods in staging and prod. The default-deny-all NetworkPolicy blocks
+# cross-namespace traffic by default; this carves out the specific exception.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-prometheus-scraping
+  namespace: staging
+spec:
+  podSelector: {}   # applies to all pods in staging
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: prometheus
+      ports:
+        - port: 3000   # user-service
+          protocol: TCP
+        - port: 3001   # order-service
+          protocol: TCP
+        - port: 8000   # product-service
+          protocol: TCP
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-prometheus-scraping
+  namespace: prod
+spec:
+  podSelector: {}   # applies to all pods in prod
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: prometheus
+      ports:
+        - port: 3000   # user-service
+          protocol: TCP
+        - port: 3001   # order-service
+          protocol: TCP
+        - port: 8000   # product-service
+          protocol: TCP
