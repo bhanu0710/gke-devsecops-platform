@@ -3,7 +3,7 @@ team: platform
 
 image:
   repository: us-central1-docker.pkg.dev/dev-project-494110/devsecops-platform/order-service
-  tag: "4ff513d3"
+  tag: "6c1e087e"
 
 service:
   port: 3001
