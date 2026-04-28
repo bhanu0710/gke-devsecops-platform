@@ -4,8 +4,8 @@ ingress-nginx:
     service:
       type: NodePort
       nodePorts:
-        http: 30090
-        https: 30453
+        http: 30180
+        https: 30543
     # Tolerate spot node taint
     tolerations:
       - key: cloud.google.com/gke-spot
