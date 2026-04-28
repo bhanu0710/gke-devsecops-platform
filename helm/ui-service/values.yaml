@@ -30,3 +30,28 @@ istio:
 
 ingress:
   enabled: false
+
+# nginx runs as user 1001 (set in Dockerfile)
+securityContext:
+  runAsUser: 1001
+  readOnlyRootFilesystem: false   # nginx writes to /var/cache/nginx and /var/run
+
+# nginx serves index.html at / not /health
+probes:
+  liveness:
+    path: /
+  readiness:
+    path: /
+
+# nginx needs writable cache and run dirs
+extraVolumeMounts:
+  - name: nginx-cache
+    mountPath: /var/cache/nginx
+  - name: nginx-run
+    mountPath: /var/run
+
+extraVolumes:
+  - name: nginx-cache
+    emptyDir: {}
+  - name: nginx-run
+    emptyDir: {}
