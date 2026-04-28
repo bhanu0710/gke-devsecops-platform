@@ -1,0 +1,9 @@
+apiVersion: v2
+name: ui-service
+description: React frontend served via nginx
+type: application
+version: 1.0.0
+dependencies:
+  - name: library-chart
+    version: "1.0.0"
+    repository: "file://../library-chart"
