@@ -8,7 +8,6 @@ metadata:
   labels:
     {{- include "library-chart.labels" . | nindent 4 }}
   annotations:
-    nginx.ingress.kubernetes.io/rewrite-target: /$2
     nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
     nginx.ingress.kubernetes.io/proxy-send-timeout: "60"
 spec:
@@ -17,8 +16,8 @@ spec:
     - http:
         paths:
           {{- range .Values.ingress.paths }}
-          - path: {{ .path }}(/|$)(.*)
-            pathType: ImplementationSpecific
+          - path: {{ .path }}
+            pathType: Prefix
             backend:
               service:
                 name: {{ $.Release.Name }}
