@@ -171,8 +171,8 @@ resource "google_container_node_pool" "main" {
   }
 
   management {
-    auto_repair  = true  # Auto-repair unhealthy nodes
-    auto_upgrade = true  # Keep nodes on the same version as control plane
+    auto_repair  = true # Auto-repair unhealthy nodes
+    auto_upgrade = true # Keep nodes on the same version as control plane
   }
 
   upgrade_settings {

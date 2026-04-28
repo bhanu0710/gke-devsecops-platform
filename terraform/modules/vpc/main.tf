@@ -15,8 +15,8 @@ resource "google_compute_subnetwork" "main" {
   project                  = var.project_id
   region                   = var.region
   network                  = google_compute_network.main.self_link
-  ip_cidr_range            = var.subnet_cidr      # Nodes get IPs from here
-  private_ip_google_access = true                  # Allows private nodes to reach Google APIs
+  ip_cidr_range            = var.subnet_cidr # Nodes get IPs from here
+  private_ip_google_access = true            # Allows private nodes to reach Google APIs
 
   secondary_ip_range {
     range_name    = "pods"

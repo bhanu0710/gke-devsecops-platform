@@ -6,11 +6,11 @@
 
 locals {
   secrets = {
-    "db-password"  = "PostgreSQL password for application services"
-    "jwt-secret"   = "HMAC-SHA256 key for JWT signing in user-service"
-    "app-api-key"  = "Internal API key for inter-service authentication"
-    "vault-token"  = "Initial Vault root token (rotated after first login)"
-    "cosign-key"   = "Cosign private key reference for image signing"
+    "db-password" = "PostgreSQL password for application services"
+    "jwt-secret"  = "HMAC-SHA256 key for JWT signing in user-service"
+    "app-api-key" = "Internal API key for inter-service authentication"
+    "vault-token" = "Initial Vault root token (rotated after first login)"
+    "cosign-key"  = "Cosign private key reference for image signing"
   }
 }
 

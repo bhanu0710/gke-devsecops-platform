@@ -91,9 +91,9 @@ module "gke" {
   source     = "../../modules/gke"
   project_id = var.project_id
 
-  cluster_name  = "devsecops-staging"
-  zone          = var.zone
-  environment   = "staging"
+  cluster_name = "devsecops-staging"
+  zone         = var.zone
+  environment  = "staging"
 
   network_name        = module.vpc.network_name
   subnet_name         = module.vpc.subnet_name
@@ -113,9 +113,9 @@ module "gke" {
 
 # ── Artifact Registry ─────────────────────────────────────────────────────────
 module "artifact_registry" {
-  source     = "../../modules/artifact-registry"
-  project_id = var.project_id
-  location   = "us-central1"
+  source      = "../../modules/artifact-registry"
+  project_id  = var.project_id
+  location    = "us-central1"
   environment = "staging"
 
   argocd_sa_email  = module.iam.argocd_sa_email
