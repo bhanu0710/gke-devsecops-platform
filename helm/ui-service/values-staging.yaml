@@ -1,6 +1,6 @@
 replicaCount: 1
 image:
-  tag: "latest"
+  tag: "4ff513d3"
 
 resources:
   requests:
