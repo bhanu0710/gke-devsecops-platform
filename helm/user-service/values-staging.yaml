@@ -1,6 +1,6 @@
 replicaCount: 1 # Lower replica count saves cost in staging
 image:
-  tag: "c4191e1d"
+  tag: "d582b93a"
 resources:
   requests:
     cpu: "50m"
