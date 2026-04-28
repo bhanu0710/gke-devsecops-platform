@@ -38,3 +38,9 @@ extraEnv:
 
 ingress:
   enabled: false
+
+probes:
+  liveness:
+    path: /health
+  readiness:
+    path: /health
