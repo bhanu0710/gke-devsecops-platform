@@ -1,0 +1,32 @@
+replicaCount: 1
+team: platform
+
+image:
+  repository: us-central1-docker.pkg.dev/dev-project-494110/devsecops-platform/ui-service
+  tag: "latest"
+
+service:
+  port: 80
+
+env: production
+
+workloadIdentity:
+  gcpServiceAccount: app-sa@dev-project-494110.iam.gserviceaccount.com
+
+resources:
+  requests:
+    cpu: "30m"
+    memory: "32Mi"
+  limits:
+    cpu: "100m"
+    memory: "64Mi"
+
+autoscaling:
+  minReplicas: 1
+  maxReplicas: 2
+
+istio:
+  inject: "false"
+
+ingress:
+  enabled: false

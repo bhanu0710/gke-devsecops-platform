@@ -1,0 +1,20 @@
+replicaCount: 1
+image:
+  tag: "latest"
+
+resources:
+  requests:
+    cpu: "30m"
+    memory: "32Mi"
+  limits:
+    cpu: "100m"
+    memory: "64Mi"
+
+autoscaling:
+  minReplicas: 1
+  maxReplicas: 1
+
+ingress:
+  enabled: true
+  paths:
+    - path: /
