@@ -1,102 +1,92 @@
 #!/usr/bin/env bash
-# capture-screenshots.sh — Step-by-step guide for capturing all demo screenshots.
-# Screenshots cannot be taken automatically, but this script starts all port-forwards
-# and prints exactly what to capture and where to save each file.
+# capture-screenshots.sh — Start all port-forwards and print capture instructions.
+# Run this on your local machine; screenshots must be taken manually in the browser.
 set -euo pipefail
 
 GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BOLD='\033[1m'; NC='\033[0m'
 
-echo -e "${BOLD}=== Starting port-forwards for all UIs ===${NC}"
-
+echo -e "${BOLD}=== Starting port-forwards ===${NC}"
 pkill -f "kubectl port-forward" 2>/dev/null || true
 sleep 1
 
-kubectl port-forward -n argocd    svc/argocd-server       8080:443  2>/dev/null &
-kubectl port-forward -n monitoring svc/prometheus-grafana  3000:80   2>/dev/null &
-kubectl port-forward -n jenkins    svc/jenkins             8081:8080 2>/dev/null &
-kubectl port-forward -n chaos-testing svc/chaos-dashboard  2333:2333 2>/dev/null &
+kubectl port-forward -n argocd    svc/argocd-server                    8080:443  2>/dev/null &
+kubectl port-forward -n monitoring svc/kube-prometheus-stack-grafana    3000:80   2>/dev/null &
 
 sleep 3
 
 echo ""
-echo -e "${BOLD}╔════════════════════════════════════════════════════════╗${NC}"
-echo -e "${BOLD}║         SCREENSHOT CAPTURE GUIDE                       ║${NC}"
-echo -e "${BOLD}╚════════════════════════════════════════════════════════╝${NC}"
+echo -e "${BOLD}╔════════════════════════════════════════╗${NC}"
+echo -e "${BOLD}║     SCREENSHOT CAPTURE GUIDE            ║${NC}"
+echo -e "${BOLD}╚════════════════════════════════════════╝${NC}"
+echo ""
+echo "  ArgoCD: https://localhost:8080   (admin / see below)"
+echo "  Grafana: http://localhost:3000   (admin / prom-operator)"
+echo ""
+ARGOCD_PASS=$(kubectl -n argocd get secret argocd-initial-admin-secret \
+  -o jsonpath='{.data.password}' 2>/dev/null | base64 -d 2>/dev/null || echo "<see deploy.sh output>")
+echo -e "  ArgoCD password: ${GREEN}${ARGOCD_PASS}${NC}"
 echo ""
 
 echo -e "${YELLOW}[01] ArgoCD App-of-Apps${NC}"
 echo "  URL: https://localhost:8080"
-echo "  Login: admin / (see deploy.sh output)"
-echo "  What to capture: Expand the root-app tree showing all 6 service apps + platform-tools"
-echo "  All apps should show: Synced + Healthy (green)"
+echo "  Click on 'root-app' → expand tree showing all 7 apps"
+echo "  All apps should show: Synced + Healthy"
 echo -e "  Save as: ${GREEN}docs/screenshots/01-argocd-app-of-apps.png${NC}"
 echo ""
 
-echo -e "${YELLOW}[02] Grafana Platform Overview${NC}"
+echo -e "${YELLOW}[02] Grafana — Services Overview${NC}"
 echo "  URL: http://localhost:3000"
-echo "  Login: admin / prom-operator"
-echo "  Navigate: Dashboards → Platform Overview"
-echo "  What to capture: Full dashboard showing pod count, CPU/memory gauges, request rate"
-echo -e "  Save as: ${GREEN}docs/screenshots/02-grafana-platform-overview.png${NC}"
+echo "  Navigate: Dashboards → Services Overview"
+echo "  Generate some traffic first:"
+echo "    kubectl port-forward -n staging svc/product-service-staging 18000:8000 &"
+echo "    for i in \$(seq 30); do curl -s http://localhost:18000/products > /dev/null; done"
+echo "  Capture: Request rate + p99 latency + pod restarts + CPU/memory panels"
+echo -e "  Save as: ${GREEN}docs/screenshots/02-grafana-services-overview.png${NC}"
 echo ""
 
-echo -e "${YELLOW}[03] SLO Dashboard${NC}"
+echo -e "${YELLOW}[03] Grafana — Product Service Dashboard${NC}"
 echo "  URL: http://localhost:3000"
-echo "  Navigate: Dashboards → Service SLO Dashboard"
-echo "  What to capture: All 3 services showing ≥99.9% availability + error budget bars"
-echo -e "  Save as: ${GREEN}docs/screenshots/03-grafana-slo-dashboard.png${NC}"
+echo "  Navigate: Dashboards → Product Service"
+echo "  Capture: stat panels (req rate, error rate, p50/p99 latency) + endpoint breakdown"
+echo -e "  Save as: ${GREEN}docs/screenshots/03-grafana-product-service.png${NC}"
 echo ""
 
-echo -e "${YELLOW}[04] Distributed Trace (order-service → user + product)${NC}"
+echo -e "${YELLOW}[04] Grafana — Node.js Services Dashboard${NC}"
 echo "  URL: http://localhost:3000"
-echo "  Navigate: Explore → Data source: Tempo → Search"
-echo "  Send a test order: curl -X POST http://NODE_IP:NODE_PORT/orders ..."
-echo "  Find the trace → expand to see 3-service span tree"
-echo -e "  Save as: ${GREEN}docs/screenshots/04-grafana-trace.png${NC}"
+echo "  Navigate: Dashboards → Node.js Services (user + order)"
+echo "  Capture: req rate + event loop lag + heap usage"
+echo -e "  Save as: ${GREEN}docs/screenshots/04-grafana-nodejs-services.png${NC}"
 echo ""
 
-echo -e "${YELLOW}[05] Loki Log Query${NC}"
-echo "  URL: http://localhost:3000"
-echo "  Navigate: Explore → Data source: Loki"
-echo "  Query: {namespace=\"staging\",app=\"order-service\"} | json"
-echo "  What to capture: Live log stream with Kubernetes labels visible"
-echo -e "  Save as: ${GREEN}docs/screenshots/05-grafana-loki-logs.png${NC}"
+echo -e "${YELLOW}[05] GitHub Actions CI Pipeline${NC}"
+echo "  URL: https://github.com/bhanu0710/gke-devsecops-platform/actions"
+echo "  Click on a completed 'CI' workflow run"
+echo "  Capture: all 5 jobs green (Lint, Unit Tests, Security Scan, Docker Build Check, Push)"
+echo -e "  Save as: ${GREEN}docs/screenshots/05-github-actions-ci.png${NC}"
 echo ""
 
-echo -e "${YELLOW}[06] Istio Traffic Topology${NC}"
-echo "  URL: http://localhost:3000"
-echo "  Navigate: Dashboards → Istio Traffic Dashboard"
-echo "  What to capture: Service mesh showing order→user and order→product arrows with request rates"
-echo -e "  Save as: ${GREEN}docs/screenshots/06-istio-topology.png${NC}"
-echo ""
-
-echo -e "${YELLOW}[07] Jenkins Pipeline (all 9 stages green)${NC}"
-echo "  URL: http://localhost:8081"
-echo "  Navigate: gke-devsecops-platform → last successful build → Stage View"
-echo "  What to capture: Blue ocean or Stage View showing all 9 stages with green checkmarks"
-echo -e "  Save as: ${GREEN}docs/screenshots/07-jenkins-pipeline-success.png${NC}"
-echo ""
-
-echo -e "${YELLOW}[08] Chaos Pod Kill Recovery${NC}"
+echo -e "${YELLOW}[06] Chaos Pod-Kill Recovery${NC}"
 echo "  Steps:"
-echo "    1. Open Grafana Platform Overview in one window"
-echo "    2. Run: kubectl apply -f chaos/pod-kill.yaml"
-echo "    3. Watch the error rate spike in Grafana, then recover to 0%"
-echo "    4. Screenshot at the moment of recovery (spike visible + back to green)"
-echo -e "  Save as: ${GREEN}docs/screenshots/08-chaos-pod-kill-recovery.png${NC}"
+echo "    1. Open http://localhost:3000 → Services Overview"
+echo "    2. Enable Chaos Mesh first: helm upgrade platform helm/platform --set chaosMesh.enabled=true"
+echo "    3. kubectl apply -f k8s/chaos/pod-kill-staging.yaml"
+echo "    4. Watch 'Pod Restarts' panel spike then recover"
+echo "    5. Screenshot at moment of recovery (spike + green return)"
+echo "    6. kubectl delete -f k8s/chaos/pod-kill-staging.yaml"
+echo -e "  Save as: ${GREEN}docs/screenshots/06-chaos-recovery.png${NC}"
 echo ""
 
 echo -e "${BOLD}=== DEMO VIDEO GUIDE ===${NC}"
 echo ""
 echo "Record a 5-minute screen recording covering:"
-echo "  0:00-0:30  GitHub repo — architecture diagram in README"
-echo "  0:30-1:30  Make a code change → push → Jenkins pipeline running all 9 stages"
-echo "  1:30-2:30  ArgoCD detecting the git change → canary rollout starting"
-echo "  2:30-3:30  Grafana: traffic shifting 10% → 30% → 100% on the canary"
-echo "  3:30-4:30  Run pod-kill chaos → show Grafana spike and recovery"
-echo "  4:30-5:00  SLO dashboard — error budget still healthy"
+echo "  0:00-0:30  GitHub repo + README architecture overview"
+echo "  0:30-1:30  GitHub Actions pipeline — show all 5 jobs green"
+echo "  1:30-2:30  ArgoCD app-of-apps — all 7 apps Synced + Healthy"
+echo "  2:30-3:30  Grafana Services Overview — live metrics"
+echo "  3:30-4:30  Chaos pod-kill experiment — spike + recovery"
+echo "  4:30-5:00  Product service dashboard — per-endpoint breakdown"
 echo ""
-echo "Upload to YouTube (unlisted) and replace YOUTUBE_ID in README.md"
+echo "Upload to YouTube (unlisted), update README.md demo video section."
 echo ""
 
 wait
