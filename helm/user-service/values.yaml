@@ -4,7 +4,7 @@ team: platform
 
 image:
   repository: us-central1-docker.pkg.dev/dev-project-494110/devsecops-platform/user-service
-  tag: "6c1e087e"
+  tag: "d1146553"
 
 service:
   port: 3000
