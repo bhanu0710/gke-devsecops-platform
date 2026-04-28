@@ -21,9 +21,10 @@ app.use(metricsMiddleware);
 // node-fetch is used instead of axios to keep dependencies minimal.
 // The fetch call propagates the traceparent header (injected by OTel auto-instrumentation)
 // so the entire request chain appears as one trace in Grafana Tempo.
+// node-fetch v2 (CommonJS) is used so Jest/nock work without --experimental-vm-modules.
+const fetch = require('node-fetch');
+
 async function fetchService(url, options = {}) {
-  // Dynamic import for node-fetch v3 (ESM-only)
-  const { default: fetch } = await import('node-fetch');
   const res = await fetch(url, { timeout: 5000, ...options });
   if (!res.ok) {
     const body = await res.text();
@@ -48,6 +49,11 @@ app.get('/metrics', async (req, res) => {
 app.post('/orders', async (req, res, next) => {
   try {
     const { userId, productId, quantity } = req.body;
+
+    // Validate required fields before making any upstream calls
+    if (!userId || !productId || !quantity) {
+      return res.status(400).json({ error: 'userId, productId, and quantity are required' });
+    }
 
     // Validate user exists — demonstrates cross-service call through Istio mesh
     await fetchService(`${USER_SERVICE_URL}/users/${userId}`, {

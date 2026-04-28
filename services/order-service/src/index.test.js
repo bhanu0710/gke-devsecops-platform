@@ -59,6 +59,45 @@ describe('GET /orders/:id', () => {
     const res = await request(app).get('/orders/no-such-order');
     expect(res.status).toBe(404);
   });
+
+  it('returns 200 with order after creation', async () => {
+    nock(USER_URL).get('/users/u1').reply(200, { id: 'u1' });
+    nock(PRODUCT_URL).get('/products/p1').reply(200, { id: 'p1', price: 10.0 });
+
+    const create = await request(app)
+      .post('/orders')
+      .send({ userId: 'u1', productId: 'p1', quantity: 1 });
+    expect(create.status).toBe(201);
+
+    const res = await request(app).get(`/orders/${create.body.id}`);
+    expect(res.status).toBe(200);
+    expect(res.body.id).toBe(create.body.id);
+  });
+});
+
+describe('PATCH /orders/:id/status', () => {
+  it('updates order status', async () => {
+    nock(USER_URL).get('/users/u2').reply(200, { id: 'u2' });
+    nock(PRODUCT_URL).get('/products/p2').reply(200, { id: 'p2', price: 20.0 });
+
+    const create = await request(app)
+      .post('/orders')
+      .send({ userId: 'u2', productId: 'p2', quantity: 3 });
+    expect(create.status).toBe(201);
+
+    const res = await request(app)
+      .patch(`/orders/${create.body.id}/status`)
+      .send({ status: 'shipped' });
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe('shipped');
+  });
+
+  it('returns 404 when patching missing order', async () => {
+    const res = await request(app)
+      .patch('/orders/ghost-order/status')
+      .send({ status: 'shipped' });
+    expect(res.status).toBe(404);
+  });
 });
 
 describe('GET /orders/user/:userId', () => {
