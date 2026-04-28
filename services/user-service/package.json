@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
-    "test": "jest --coverage --coverageThreshold='{\"global\":{\"lines\":70}}'",
+    "test": "jest --coverage --forceExit --coverageThreshold='{\"global\":{\"lines\":70}}'",
     "test:watch": "jest --watch"
   },
   "dependencies": {
@@ -28,6 +28,9 @@
   "jest": {
     "testEnvironment": "node",
     "coverageDirectory": "coverage",
-    "collectCoverageFrom": ["src/**/*.js", "!src/tracing.js"]
+    "collectCoverageFrom": [
+      "src/**/*.js",
+      "!src/tracing.js"
+    ]
   }
 }

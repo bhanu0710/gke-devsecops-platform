@@ -1,12 +1,12 @@
 {
   "name": "order-service",
   "version": "1.0.0",
-  "description": "Order management service — calls user-service and product-service",
+  "description": "Order management service \u2014 calls user-service and product-service",
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
-    "test": "jest --coverage --coverageThreshold='{\"global\":{\"lines\":70}}'",
+    "test": "jest --coverage --forceExit --coverageThreshold='{\"global\":{\"lines\":70}}'",
     "test:watch": "jest --watch"
   },
   "dependencies": {
@@ -28,7 +28,10 @@
   "jest": {
     "testEnvironment": "node",
     "coverageDirectory": "coverage",
-    "collectCoverageFrom": ["src/**/*.js", "!src/tracing.js"],
+    "collectCoverageFrom": [
+      "src/**/*.js",
+      "!src/tracing.js"
+    ],
     "transform": {}
   }
 }
