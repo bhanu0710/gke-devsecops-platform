@@ -1,11 +1,10 @@
-replicaCount: 3 # Higher replicas for HA in prod
+# Production overrides — merged on top of values.yaml by ArgoCD
+replicaCount: 1   # keep low on free-tier spot cluster (limited CPU)
+
 resources:
   requests:
-    cpu: "200m"
-    memory: "256Mi"
+    cpu: "50m"
+    memory: "128Mi"
   limits:
-    cpu: "1000m"
-    memory: "512Mi"
-autoscaling:
-  minReplicas: 3
-  maxReplicas: 20
+    cpu: "300m"
+    memory: "256Mi"
