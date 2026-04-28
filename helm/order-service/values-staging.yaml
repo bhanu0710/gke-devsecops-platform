@@ -11,6 +11,11 @@ resources:
 autoscaling:
   minReplicas: 1
   maxReplicas: 3
+
+ingress:
+  enabled: true
+  paths:
+    - path: /orders
 extraEnv:
   - name: USER_SERVICE_URL
     value: "http://user-service.staging.svc.cluster.local:3000"

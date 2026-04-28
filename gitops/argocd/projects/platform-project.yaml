@@ -15,6 +15,7 @@ spec:
     - https://prometheus-community.github.io/helm-charts
     - https://helm.releases.hashicorp.com
     - https://istio-release.storage.googleapis.com/charts
+    - https://kubernetes.github.io/ingress-nginx
 
   destinations:
     - namespace: staging
@@ -32,6 +33,8 @@ spec:
     - namespace: istio-system
       server: https://kubernetes.default.svc
     - namespace: jenkins
+      server: https://kubernetes.default.svc
+    - namespace: ingress-nginx
       server: https://kubernetes.default.svc
 
   clusterResourceWhitelist:

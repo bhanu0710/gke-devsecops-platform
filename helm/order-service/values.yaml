@@ -33,3 +33,6 @@ extraEnv:
     value: "http://user-service.staging.svc.cluster.local:3000"
   - name: PRODUCT_SERVICE_URL
     value: "http://product-service.staging.svc.cluster.local:8000"
+
+ingress:
+  enabled: false

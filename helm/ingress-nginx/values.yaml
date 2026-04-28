@@ -1,0 +1,22 @@
+ingress-nginx:
+  controller:
+    # NodePort only — never use LoadBalancer (costs $18/mo on GCP)
+    service:
+      type: NodePort
+      nodePorts:
+        http: 30080
+        https: 30443
+    # Tolerate spot node taint
+    tolerations:
+      - key: cloud.google.com/gke-spot
+        operator: Exists
+        effect: NoSchedule
+    resources:
+      requests:
+        cpu: "50m"
+        memory: "128Mi"
+      limits:
+        cpu: "200m"
+        memory: "256Mi"
+    # Single replica to save cluster resources on free tier
+    replicaCount: 1

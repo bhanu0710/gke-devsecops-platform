@@ -35,3 +35,6 @@ extraEnv:
       secretKeyRef:
         name: app-secrets
         key: jwt-secret
+
+ingress:
+  enabled: false
