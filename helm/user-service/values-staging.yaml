@@ -11,3 +11,8 @@ resources:
 autoscaling:
   minReplicas: 1
   maxReplicas: 3
+
+ingress:
+  enabled: true
+  paths:
+    - path: /users
