@@ -1,0 +1,22 @@
+---
+# Chaos Mesh PodChaos — kills one product-service pod in staging every 2 minutes.
+# Used to demonstrate Kubernetes self-healing: ArgoCD + Deployment controller
+# automatically replaces killed pods, proving HA in the portfolio demo.
+#
+# Apply:  kubectl apply -f k8s/chaos/pod-kill-staging.yaml
+# Delete: kubectl delete -f k8s/chaos/pod-kill-staging.yaml
+apiVersion: chaos-mesh.org/v1alpha1
+kind: PodChaos
+metadata:
+  name: product-service-pod-kill
+  namespace: chaos-testing
+spec:
+  action: pod-kill
+  mode: one              # kill one random pod per round
+  selector:
+    namespaces:
+      - staging
+    labelSelectors:
+      app: product-service-staging
+  scheduler:
+    cron: "@every 2m"   # fire every 2 minutes — short enough to show recovery in a demo

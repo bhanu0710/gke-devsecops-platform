@@ -1,0 +1,8 @@
+Platform tools deployed:
+{{- if .Values.chaosMesh.enabled }}
+✓ Chaos Mesh — chaos engineering framework
+  Dashboard: kubectl port-forward -n chaos-testing svc/chaos-dashboard 2333:2333
+{{- end }}
+
+To run a chaos experiment:
+  kubectl apply -f k8s/chaos/

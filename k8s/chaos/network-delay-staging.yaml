@@ -1,0 +1,25 @@
+---
+# Chaos Mesh NetworkChaos — injects 200ms latency on order-service in staging.
+# Used to show how Grafana p99 latency graphs spike during chaos and recover
+# when the experiment is stopped.
+#
+# Apply:  kubectl apply -f k8s/chaos/network-delay-staging.yaml
+# Delete: kubectl delete -f k8s/chaos/network-delay-staging.yaml
+apiVersion: chaos-mesh.org/v1alpha1
+kind: NetworkChaos
+metadata:
+  name: order-service-latency
+  namespace: chaos-testing
+spec:
+  action: delay
+  mode: all
+  selector:
+    namespaces:
+      - staging
+    labelSelectors:
+      app: order-service-staging
+  delay:
+    latency: "200ms"
+    correlation: "25"
+    jitter: "50ms"
+  duration: "5m"   # run for 5 minutes then auto-stop — good for a demo clip
