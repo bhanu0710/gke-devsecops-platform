@@ -1,7 +1,7 @@
 """Tests for product-service. Uses TestClient (sync) to avoid async complexity."""
 import pytest
 from fastapi.testclient import TestClient
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 # Patch OpenTelemetry before importing main to avoid real gRPC connections in tests
 with patch("opentelemetry.sdk.trace.export.BatchSpanProcessor.on_start"), \
